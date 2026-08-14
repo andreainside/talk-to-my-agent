@@ -38,15 +38,28 @@ Tokens go right after the @mention, before the request:
 
 Unrecognized leading `+tokens` end token parsing and become part of the request, so a message like "+1 to that idea" still reads naturally.
 
-## 3. Write actions: the approval gate (审批闸)
+## 3. The approval gate (审批闸)
 
-With `approvals.enabled`, a summoned Claude session is not blindly read-only — it can *attempt* anything, and every non-read tool call pauses on a `PreToolUse` hook that:
+With `approvals.enabled`, a summoned Claude session can *attempt* anything; a `PreToolUse` hook decides what runs. The policy has three tiers:
 
-1. posts `🔐 需要授权才能继续: <tool> <args>` into the summoning thread,
-2. waits for the **owner** (and only the owner — verified by open_id) to reply `允许` / `拒绝` (mentioning the bot in the reply is fine),
-3. timeout (default 300s) = deny, announced in the thread.
+| Action | What happens |
+|---|---|
+| **Read inside your chosen repos** (`allowed_read_roots`) — file reads, searches, read-only shell | passes instantly, no questions |
+| **Read outside those roots** — any path not under a chosen root | asks the owner |
+| **Any write or side effect** — edits, mutating commands, pushes | asks the owner, always |
 
-Read-only tools and read-only shell prefixes (`auto_allow_tools` / `auto_allow_bash_prefixes`) pass instantly without asking. Codex runs stay hard-sandboxed read-only regardless — its approval wiring isn't built yet.
+**Choosing your repos**: `allowed_read_roots` is a list of directories your agent may read freely (your main repo, its worktrees, this bridge's own checkout…). Empty list = just the `workdir`. This is per-machine config — each teammate scopes their own agent to their own code.
+
+**Answering the 🔐 ask** (owner only — verified by open_id; @-ing the bot in your reply is fine):
+
+- `允许` — approve this one action
+- `全部允许` / `放行` — approve everything for the rest of this run (no more asks)
+- `拒绝` — deny it
+- silence — timeout (default 300s) denies automatically
+
+**`+free`**: the owner can summon with `@bot +free …` to skip approvals for that entire run up front. Only the owner's own @ gets this; anyone else's `+free` is ignored.
+
+Read-only shell detection is per-segment (`cd x && ls && cat y` counts as read-only) and fails closed on command substitution, backticks, and redirects. Codex runs stay hard-sandboxed read-only regardless — its approval wiring isn't built yet.
 
 ## 4. `config.json` (per machine, never committed)
 
@@ -59,6 +72,8 @@ Read-only tools and read-only shell prefixes (`auto_allow_tools` / `auto_allow_b
                                    // optional; runs in workdir before every summon so the
                                    // agent never reads stale code — use ONLY on a checkout
                                    // dedicated to the bridge (it hard-resets!)
+  "allowed_read_roots": [],        // directories the agent may read WITHOUT asking
+                                   // (your repos, worktrees…); empty = workdir only
   "context_messages": 40,          // how much recent chat the agent gets to read
   "reply_style": "thread",        // "thread" keeps answers in topic threads;
                                    // "chat" posts straight into the main flow

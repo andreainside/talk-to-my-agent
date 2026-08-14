@@ -16,6 +16,9 @@ import re
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+GRANTS_DIR = Path(os.environ.get("TTMA_HOME", Path.home() / ".talk-to-my-agent")) / "grants"
 
 ENV = {
     **os.environ,
@@ -24,6 +27,7 @@ ENV = {
 }
 
 ALLOW_WORDS = {"允许", "同意", "批准", "approve", "yes", "y", "ok"}
+ALLOW_ALL_WORDS = {"全部允许", "放行", "全部放行", "allow all", "approve all", "yolo"}
 DENY_WORDS = {"拒绝", "不允许", "不行", "deny", "no", "n"}
 
 
@@ -110,14 +114,41 @@ def main():
     payload = json.load(sys.stdin)
     tool = payload.get("tool_name") or ""
     tool_input = payload.get("tool_input") or {}
+    session_id = payload.get("session_id") or ""
+
+    # Owner-level blanket grants: +free on the summon, or a prior 全部允许.
+    if os.environ.get("TTMA_GRANT_ALL") == "1":
+        decide(True, "owner pre-granted this run (+free)")
+    if session_id and (GRANTS_DIR / session_id).exists():
+        decide(True, "owner granted the whole session")
 
     auto_tools = set(filter(None, (os.environ.get("TTMA_AUTO_ALLOW_TOOLS") or "").split(",")))
     auto_bash = [p.strip() for p in (os.environ.get("TTMA_AUTO_ALLOW_BASH") or "").split(",") if p.strip()]
+    roots = [r for r in (os.environ.get("TTMA_ALLOWED_READ_ROOTS") or "").split(":") if r]
+
+    def path_in_roots(path):
+        """Reads inside the allowed roots are free; anywhere else asks the owner."""
+        if not roots:
+            return True
+        real = os.path.realpath(os.path.expanduser(path))
+        return any(real == root or real.startswith(root + "/") for root in roots)
 
     if tool in auto_tools:
-        decide(True, "read-only tool")
-    if tool == "Bash" and bash_is_read_only((tool_input.get("command") or "").strip(), auto_bash):
-        decide(True, "read-only command")
+        candidate = tool_input.get("file_path") or tool_input.get("path") or ""
+        if not candidate or path_in_roots(candidate):
+            decide(True, "read-only tool in allowed scope")
+    if tool == "Bash":
+        command = (tool_input.get("command") or "").strip()
+        if bash_is_read_only(command, auto_bash):
+            cleaned = DEVNULL_REDIRECTS.sub(" ", command)
+            candidates = [
+                piece
+                for token in cleaned.replace('"', " ").replace("'", " ").split()
+                for piece in token.split("=")
+                if piece.startswith(("/", "~"))
+            ]
+            if all(path_in_roots(p) for p in candidates):
+                decide(True, "read-only command in allowed scope")
 
     trigger = os.environ.get("TTMA_TRIGGER_MSG_ID")
     owner = os.environ.get("TTMA_OWNER_OPEN_ID")
@@ -135,7 +166,8 @@ def main():
     post(
         trigger,
         f'<at user_id="{owner}"></at> 🔐 需要授权才能继续:\n{tool} {compact}\n'
-        f"{where}「允许」或「拒绝」({timeout_s}s 超时自动拒绝)",
+        f"{where}「允许」(仅此条) /「全部允许」(本次任务不再问) /「拒绝」"
+        f"({timeout_s}s 超时自动拒绝)",
     )
 
     deadline = time.time() + timeout_s
@@ -150,6 +182,11 @@ def main():
             text = strip_mentions(
                 str(message.get("content") or ""), message.get("mentions"),
             ).lower()
+            if text in ALLOW_ALL_WORDS or any(text.startswith(w) for w in ("全部允许", "放行")):
+                if session_id:
+                    GRANTS_DIR.mkdir(parents=True, exist_ok=True)
+                    (GRANTS_DIR / session_id).write_text("granted")
+                decide(True, "owner granted the whole session")
             if text in ALLOW_WORDS or any(text.startswith(w) for w in ("允许", "同意", "批准")):
                 decide(True, "owner approved in thread")
             if text in DENY_WORDS or any(text.startswith(w) for w in ("拒绝", "不允许", "不行")):

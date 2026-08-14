@@ -33,7 +33,8 @@ HOOK_PATH = Path(__file__).resolve().parent / "approval_hook.py"
 DEFAULT_AUTO_ALLOW_TOOLS = "Read,Grep,Glob,LS,TodoWrite,Task,WebSearch"
 DEFAULT_AUTO_ALLOW_BASH = (
     "git log,git show,git diff,git status,git grep,git branch,"
-    "rg,grep,ls,cat,head,tail,wc,find,cd,echo,pwd,which"
+    "rg,grep,ls,cat,head,tail,wc,find,cd,echo,pwd,which,"
+    "sed -n,diff,stat,file,tree,du,sort"
 )
 
 HELP_TEXT = """I'm your agent's control plane. DM commands:
@@ -184,7 +185,11 @@ def write_claude_settings(cfg):
 
 
 def hook_env(cfg, trigger_message_id, chat_id):
+    roots = cfg.get("allowed_read_roots") or [cfg["workdir"]]
     return {
+        "TTMA_ALLOWED_READ_ROOTS": ":".join(
+            os.path.realpath(os.path.expanduser(str(r))) for r in roots
+        ),
         "TTMA_TRIGGER_MSG_ID": trigger_message_id,
         "TTMA_CHAT_ID": chat_id,
         "TTMA_REPLY_STYLE": cfg.get("reply_style", "thread"),
@@ -291,6 +296,7 @@ TOKEN_ALIASES = {
     "+codex": ("provider", "codex"), "+both": ("provider", "both"),
     "+opus": ("model", "opus"), "+sonnet": ("model", "sonnet"), "+haiku": ("model", "haiku"),
     "+high": ("effort", "high"), "+medium": ("effort", "medium"), "+low": ("effort", "low"),
+    "+free": ("grant_all", "1"),
 }
 
 

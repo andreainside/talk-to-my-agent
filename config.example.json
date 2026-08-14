@@ -16,7 +16,7 @@
     "timeout_seconds": 300
   },
   "auto_allow_tools": "Read,Grep,Glob,LS,TodoWrite,Task,WebSearch",
-  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,grep,ls,cat,head,tail,wc,find,cd,echo,pwd,which",
+  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,grep,ls,cat,head,tail,wc,find,cd,echo,pwd,which,sed -n,diff,stat,file,tree,du,sort",
   "claude_args": [],
   "codex_args": [
     "--sandbox",
@@ -25,5 +25,6 @@
   ],
   "run_timeout_seconds": 900,
   "groups": [],
-  "reply_style": "thread"
+  "reply_style": "thread",
+  "allowed_read_roots": []
 }
