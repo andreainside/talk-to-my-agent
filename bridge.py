@@ -197,7 +197,7 @@ def write_claude_settings(cfg):
     return path
 
 
-def agent_env(cfg, home):
+def zone_paths(cfg, home):
     """Zones, not command lists.
 
     write zone — its home, the disposable worktree it works in, and the engine's
@@ -205,22 +205,57 @@ def agent_env(cfg, home):
     needs no approval). All of it is either the agent's own or recoverable.
     read zone — the write zone plus whatever repos the owner opened up.
     """
-    scratch = [f"/private/tmp/claude-{os.getuid()}", f"/tmp/claude-{os.getuid()}"]
-    write_zone = [str(home), str(cfg["workdir"])] + scratch + \
-                 [str(r) for r in (cfg.get("allowed_write_roots") or [])]
-    read_zone = write_zone + [str(HOMES_DIR)] + \
-                [str(r) for r in (cfg.get("allowed_read_roots") or [])]
-
     def real(paths):
-        return ":".join(os.path.realpath(os.path.expanduser(p)) for p in paths)
+        seen = []
+        for path in paths:
+            resolved = os.path.realpath(os.path.expanduser(str(path)))
+            if resolved not in seen:
+                seen.append(resolved)
+        return seen
 
+    scratch = [f"/private/tmp/claude-{os.getuid()}", f"/tmp/claude-{os.getuid()}"]
+    write_zone = real([home, cfg["workdir"]] + scratch + (cfg.get("allowed_write_roots") or []))
+    read_zone = real(write_zone + [HOMES_DIR] + (cfg.get("allowed_read_roots") or []))
+    return write_zone, read_zone
+
+
+def agent_env(cfg, home):
+    write_zone, read_zone = zone_paths(cfg, home)
     return executor_env(cfg, {
-        "TTMA_WRITE_ZONE": real(write_zone),
-        "TTMA_READ_ZONE": real(read_zone),
+        "TTMA_WRITE_ZONE": ":".join(write_zone),
+        "TTMA_READ_ZONE": ":".join(read_zone),
         "TTMA_OWNER_OPEN_ID": cfg.get("owner_open_id", ""),
         "TTMA_REPLY_STYLE": cfg.get("reply_style", "thread"),
         "TTMA_APPROVAL_TIMEOUT": str((cfg.get("approvals") or {}).get("timeout_seconds", 300)),
     })
+
+
+def workspace_briefing(cfg, home):
+    """Tell the agent where it lives and what it may touch.
+
+    Without this it hunts for the repo (`find ~ -iname "*dori*"`) and trips the
+    very approval gate the paths were meant to avoid — it had the access and
+    didn't know it.
+    """
+    write_zone, read_zone = zone_paths(cfg, home)
+    read_only = [p for p in read_zone if p not in write_zone]
+    lines = [
+        "Your workspace on this machine — these paths are already yours, do not go looking for others:",
+        "",
+        "Free to read, write and run commands in:",
+    ]
+    lines += [f"  {p}" for p in write_zone]
+    if read_only:
+        lines += ["", "Readable, but changing anything here asks the owner first:"]
+        lines += [f"  {p}" for p in read_only]
+    lines += [
+        "",
+        "Anything outside these paths asks the owner, and so do outward or irreversible "
+        "actions (git push, opening or merging PRs, publishing, deploying) wherever they run.",
+        "Searching the wider filesystem for a project is not worth an approval prompt — the "
+        "repository you work with is listed above.",
+    ]
+    return "\n".join(lines)
 
 
 def normalize_model(model):
@@ -263,6 +298,7 @@ class Agent:
             "--verbose",
         ]
         cmd += self.cfg.get("claude_args", [])
+        cmd += ["--append-system-prompt", workspace_briefing(self.cfg, self.home)]
         if approvals_enabled(self.cfg):
             cmd += ["--settings", str(self.cfg["_claude_settings_path"])]
         model = normalize_model((self.state.get("prefs") or {}).get("model") or
