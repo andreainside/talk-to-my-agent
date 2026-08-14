@@ -442,6 +442,9 @@ def handle_task(cfg, state, event):
     thread_lines = fetch_thread(event["thread_id"]) if event.get("thread_id") else []
     prompt = build_prompt(cfg, context_lines, thread_lines, request)
     extra_env = hook_env(cfg, message_id, event["chat_id"])
+    if prefs.get("grant_all") and event.get("sender_id") == cfg.get("owner_open_id"):
+        # +free: the OWNER's own summon skips approvals for this whole run
+        extra_env["TTMA_GRANT_ALL"] = "1"
     in_thread = style_in_thread
     at_requester = mention(event.get("sender_id"))
 
