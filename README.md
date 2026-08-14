@@ -98,13 +98,22 @@ Each agent is a normal Claude session on your machine — `claude --resume <id>`
 - Writes outside its own home always ask the owner. Timeout = deny.
 - Only the **owner's DM** configures an agent; only the owner's tap approves.
 
+## It can fix itself
+
+Your agent can read this project's source and your settings file. So when it's
+annoying — interrupting too often, wrong emoji, replies in the wrong place —
+tell it, and it will find the setting and offer to change it (that edit lands
+outside its own home, so you approve it and see it first). If the bridge itself
+is broken, it can file an issue on this repo — with your approval, since it's
+your name on it.
+
 ## What people build on top
 
 Feedback-to-fix loops, alert triage, cross-machine agent relays, async standups ("@her agent — how's the migration going?"). The bridge stays tiny; the fun lives in [docs/playbook.md](docs/playbook.md).
 
 ## Status
 
-Early, opinionated, extracted from a real team's daily workflow. Claude Code today; Codex support for the agent side isn't wired yet (its persistent-session protocol differs). Feishu/Lark only — the design ports to any chat platform with an events API.
+Early, opinionated, extracted from a real team's daily workflow. Runs on **Claude Code or Codex** — set `backend` and use whichever you have; both get the same colleague model and the same approval policy ([the differences](docs/configuration.md#5-backends-claude-code-or-codex) are documented, not glossed over). Feishu/Lark only — the design ports to any chat platform with an events API.
 
 ## License
 

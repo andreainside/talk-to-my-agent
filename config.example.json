@@ -1,4 +1,5 @@
 {
+  "backend": "claude",
   "bot_open_id": "ou_YOUR_BOT_OPEN_ID",
   "owner_open_id": "ou_YOUR_OWN_OPEN_ID",
   "workdir": "~/work/your-repo",

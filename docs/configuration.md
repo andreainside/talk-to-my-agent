@@ -69,6 +69,7 @@ fine. `@bot +free <request>` pre-grants a whole task up front — owner only.
 
 ```jsonc
 {
+  "backend": "claude",            // "claude" or "codex" — whichever you run
   "bot_open_id":   "ou_...",      // your bot   (lark-cli auth status → identities.bot.openId)
   "owner_open_id": "ou_...",      // you        (→ identities.user.openId)
   "workdir": "~/work/agent-tree", // where agents run; a checkout dedicated to them
@@ -89,7 +90,27 @@ fine. `@bot +free <request>` pre-grants a whole task up front — owner only.
 without asking. Your real working tree belongs in `allowed_read_roots` instead:
 readable, but changes ask.
 
-## 5. State on disk
+## 5. Backends: Claude Code or Codex
+
+Set `"backend"` and run whichever CLI you have. Same colleague-per-group model,
+same approval policy, same chat behaviour — with two honest differences:
+
+| | Claude Code | Codex |
+|---|---|---|
+| memory file in each home | `CLAUDE.md` | `AGENTS.md` |
+| asked mid-task, during a long blocking command | answers right away (it backgrounds long commands) | answers at its next reasoning boundary — after the command finishes |
+| containment | the policy gate (text-level) | an OS sandbox limited to the write zone, plus the same policy gate on escalation |
+| model switching | `model opus` / `sonnet` / `haiku` | set `"model"` in the config |
+
+Codex gets **stronger containment** (a real sandbox, network off inside it —
+anything reaching out becomes an approval request) and a **weaker interruption
+promise**. Pick accordingly; the rest is identical.
+
+Codex's app-server protocol is marked experimental upstream. Pin your CLI
+version, and re-run `python3 test_permissions.py` plus a live summon after
+upgrading it.
+
+## 6. State on disk
 
 `~/.talk-to-my-agent/`
 

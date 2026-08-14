@@ -142,17 +142,20 @@ def safe_dir_name(name):
     return cleaned or "group"
 
 
-def ensure_home(state, chat_id):
-    """Each group's agent gets its own home; seeded once, then it owns the file."""
+def ensure_home(state, chat_id, template="CLAUDE.md"):
+    """Each group's agent gets its own home; seeded once, then it owns the file.
+
+    The filename is the engine's own convention (Claude reads CLAUDE.md, Codex
+    reads AGENTS.md) — same notes, whichever colleague lives here.
+    """
     name = chat_name(state, chat_id)
     home = HOMES_DIR / safe_dir_name(name)
-    if not home.exists():
-        home.mkdir(parents=True, exist_ok=True)
-        (home / "notes").mkdir(exist_ok=True)
-        template = HOME_TEMPLATE / "CLAUDE.md"
-        if template.exists():
-            text = template.read_text().replace("{{CHAT_NAME}}", name)
-            (home / "CLAUDE.md").write_text(text)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "notes").mkdir(exist_ok=True)
+    notes = home / template
+    source = HOME_TEMPLATE / "CLAUDE.md"
+    if not notes.exists() and source.exists():
+        notes.write_text(source.read_text().replace("{{CHAT_NAME}}", name))
     (HOMES_DIR / "shared").mkdir(parents=True, exist_ok=True)
     return home
 
@@ -215,7 +218,13 @@ def zone_paths(cfg, home):
 
     scratch = [f"/private/tmp/claude-{os.getuid()}", f"/tmp/claude-{os.getuid()}"]
     write_zone = real([home, cfg["workdir"]] + scratch + (cfg.get("allowed_write_roots") or []))
-    read_zone = real(write_zone + [HOMES_DIR] + (cfg.get("allowed_read_roots") or []))
+    # An agent can read its own source and its own settings file — that's what
+    # lets it explain its behaviour and help its owner reconfigure it. The
+    # settings file is named exactly; the rest of the state dir (which holds the
+    # auth token) stays out of reach.
+    self_knowledge = [PROJECT_DIR, cfg.get("_config_path") or (STATE_DIR / "config.json")]
+    read_zone = real(write_zone + [HOMES_DIR] + self_knowledge +
+                     (cfg.get("allowed_read_roots") or []))
     return write_zone, read_zone
 
 
@@ -230,10 +239,28 @@ def agent_env(cfg, home):
     })
 
 
+def make_agent(cfg, state, chat_id):
+    """Hire this group's colleague on whichever engine the owner runs."""
+    if cfg.get("backend", "claude") != "codex":
+        return Agent(cfg, state, chat_id)
+
+    from codex_agent import CodexAgent  # optional backend, imported on demand
+
+    name = chat_name(state, chat_id)
+    home = ensure_home(state, chat_id, template="AGENTS.md")
+    write_zone, _ = zone_paths(cfg, home)
+    cfg = {**cfg, "_write_zone": write_zone, "_agent_env": agent_env(cfg, home)}
+    return CodexAgent(
+        cfg, state, chat_id, name, home,
+        gate=lambda tool, tool_input: policy_gate(cfg, home, chat_id, tool, tool_input),
+        briefing=workspace_briefing(cfg, home),
+    )
+
+
 def workspace_briefing(cfg, home):
     """Tell the agent where it lives and what it may touch.
 
-    Without this it hunts for the repo (`find ~ -iname "*dori*"`) and trips the
+    Without this it hunts for the repo (`find ~ -iname "*project*"`) and trips the
     very approval gate the paths were meant to avoid — it had the access and
     didn't know it.
     """
@@ -272,8 +299,33 @@ def normalize_model(model):
 
 # ------------------------------------------------------------------ agents --
 
+def policy_gate(cfg, home, chat_id, tool_name, tool_input):
+    """Ask the shared permission policy about one action.
+
+    Claude reaches the policy on its own (a PreToolUse hook); Codex hands
+    approval requests to us instead. Running the same script either way keeps
+    one policy, one wording, one set of tests — not two that drift.
+    """
+    payload = {"tool_name": tool_name, "tool_input": tool_input,
+               "session_id": (load_state().get("sessions") or {}).get(chat_id, "")}
+    env = dict(agent_env(cfg, home))
+    env["TTMA_CHAT_ID"] = chat_id
+    try:
+        proc = subprocess.run(
+            ["python3", str(HOOK_PATH)], input=json.dumps(payload),
+            capture_output=True, text=True, env=env,
+            timeout=int((cfg.get("approvals") or {}).get("timeout_seconds", 300)) + 120,
+        )
+        decision = json.loads(proc.stdout)["hookSpecificOutput"]["permissionDecision"]
+        return decision == "allow"
+    except Exception:  # noqa: BLE001 - an unreachable policy denies
+        return False
+
+
 class Agent:
     """One persistent Claude session for one group."""
+
+    backend = "claude"
 
     def __init__(self, cfg, state, chat_id):
         self.cfg = cfg
@@ -524,7 +576,7 @@ def handle_mention(cfg, state, agents, event):
 
     agent = agents.get(chat_id)
     if agent is None:
-        agent = agents[chat_id] = Agent(cfg, state, chat_id)
+        agent = agents[chat_id] = make_agent(cfg, state, chat_id)
     agent.last_request = request
     if agent.busy_since is None:
         agent.busy_since = time.time()
@@ -598,11 +650,13 @@ def main():
     parser.add_argument("--config", default=str(STATE_DIR / "config.json"))
     args = parser.parse_args()
     cfg = json.loads(Path(args.config).expanduser().read_text())
+    cfg["_config_path"] = str(Path(args.config).expanduser())
     for key in ("bot_open_id", "owner_open_id", "workdir"):
         if not cfg.get(key):
             sys.exit(f"config missing required key: {key}")
-    if not shutil.which("claude"):
-        sys.exit("`claude` not found on PATH")
+    engine = "codex" if cfg.get("backend") == "codex" else "claude"
+    if not shutil.which(engine):
+        sys.exit(f"backend is '{engine}' but `{engine}` is not on PATH")
     if approvals_enabled(cfg):
         cfg["_claude_settings_path"] = write_claude_settings(cfg)
     HOMES_DIR.mkdir(parents=True, exist_ok=True)
