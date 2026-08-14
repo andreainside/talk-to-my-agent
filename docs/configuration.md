@@ -1,102 +1,102 @@
 # Configuration
 
-Two layers, one principle: **durable defaults live in your DM with your own bot; group `+tokens` are one-shot overrides and never persist.** Nobody but you can reconfigure your agent.
+Two layers: **durable settings live in your DM with your own bot**, and the file
+`~/.talk-to-my-agent/config.json` holds the per-machine wiring. Nobody but you
+can reconfigure your agents.
 
-## 1. DM control plane (durable — 私聊设默认值)
+## 1. DM control plane
 
 DM your own bot. Commands are plain text:
 
 | Command | Effect |
 |---|---|
-| `status` | show provider / model / effort / ack emoji / workdir |
-| `model claude` | switch provider to Claude Code |
-| `model claude opus` | provider + model (`opus` / `sonnet` / `haiku`) |
-| `model codex` | switch provider to Codex |
-| `model codex gpt-5-codex` | provider + any model name Codex accepts via `-m` |
-| `effort low` / `effort medium` / `effort high` | reasoning effort |
-| `emoji SMUG` | set the ack emoji your bot drops when summoned |
-| `emoji that` | adopt whatever emoji **you just reacted** on the bot's last DM message |
-| `reset` | fresh brain — abandon the persistent session; the next summon starts a new one |
+| `status` | who's on staff (one agent per group), what each is doing, cost so far |
+| `model opus` / `sonnet` / `haiku` | switch everyone's model; sessions and memory survive |
+| `emoji SMUG` | the emoji your bot drops when summoned |
+| `emoji that` | react on the bot's last DM message, then send this — it adopts that emoji |
+| `reset <group>` / `reset all` | fresh brain for that group's agent (its notes stay) |
 | `help` | command list |
 
-Notes:
+Emoji keys are Feishu's fixed reaction keys (`Yes`, `No`, `CheckMark`, `SMUG`,
+`THUMBSUP`, …). They aren't guessable from the picker, so `emoji that` is the
+reliable route: react with the face you want, then send the command.
 
-- **Effort** is passed where the provider supports it (Codex: `model_reasoning_effort`). For Claude Code, strength is chosen via the model (`opus` > `sonnet` > `haiku`); an unsupported effort setting is silently ignored, never an error.
-- **Emoji keys** are Feishu's fixed reaction keys (`THUMBSUP`, `SMUG`, `OK`, …). Keys aren't guessable from the picker, so the reliable flow is `emoji that`: react on the bot's last message with the face you want, then send `emoji that` — the bridge reads the reaction back and adopts its key.
+## 2. Permissions: zones, not command lists
 
-## 2. Group one-shot overrides (单次覆盖)
+An agent is free inside a workspace and asks about anything beyond it. There is
+no allowlist of "safe commands" to maintain — that approach breaks on every new
+shell idiom.
 
-Tokens go right after the @mention, before the request:
+| Zone | What's in it | What the agent may do |
+|---|---|---|
+| **write zone** | its own home, your `workdir` (use a *disposable* checkout), the engine's scratch dir | read, write, run — freely |
+| **read zone** | the write zone, every agent's home, plus `allowed_read_roots` | read freely; changing things here asks |
+| everywhere else | your other files, `~/.ssh`, the system | asks |
 
-```
-@Alice's bot +codex           ...        run this one on Codex
-@Alice's bot +cc              ...        run this one on Claude Code
-@Alice's bot +both            ...        run on both, two answers
-@Alice's bot +opus / +sonnet / +haiku    Claude model for this run
-@Alice's bot +high / +medium / +low      effort for this run
-@Alice's bot +model:gpt-5-codex          explicit model name for this run
-```
+On top of that, two short semantic rules:
 
-Unrecognized leading `+tokens` end token parsing and become part of the request, so a message like "+1 to that idea" still reads naturally.
+- **Destructive actions** (`rm`, `mv`, overwriting redirects, `sed -i`,
+  `git reset/clean/checkout --`, `chmod`, …) are free inside the write zone —
+  deleting build output in a throwaway worktree is just work — but **ask**
+  whenever they reach outside it.
+- **Outward or irreversible actions** (`git push`, `gh pr create/merge`,
+  `npm/cargo publish`, `kubectl apply`, `terraform apply`, `docker push`,
+  mutating `curl`) **always ask**, even under a blanket grant. You can undo a
+  bad local edit; you cannot unpublish.
 
-## 3. The approval gate (审批闸)
+Run `python3 test_permissions.py` to see the whole policy as executable cases.
 
-With `approvals.enabled`, a summoned Claude session can *attempt* anything; a `PreToolUse` hook decides what runs. The policy has three tiers:
+**Known limitation, stated plainly**: a command can compute paths at runtime
+(`python -c ...`), and no text-level gate can see that. Real containment needs
+an OS sandbox — that's future hardening, not something this gate pretends to do.
+The threat model it does cover: an agent doing something careless, and prompt
+injection arriving through chat.
 
-| Action | What happens |
-|---|---|
-| **Read inside your chosen repos** (`allowed_read_roots`) — file reads, searches, read-only shell | passes instantly, no questions |
-| **Read outside those roots** — any path not under a chosen root | asks the owner |
-| **Any write or side effect** — edits, mutating commands, pushes | asks the owner, always |
+## 3. Answering an approval card
 
-**Choosing your repos**: `allowed_read_roots` is a list of directories your agent may read freely (your main repo, its worktrees, this bridge's own checkout…). Empty list = just the `workdir`. This is per-machine config — each teammate scopes their own agent to their own code.
+The card says what the agent wants in plain words, with the technical detail
+below it. Only the **owner's** response counts (verified by open_id):
 
-**Answering the 🔐 ask** (owner only — verified by open_id; @-ing the bot in your reply is fine):
+- **YES** — allow this one action
+- **✔** — allow everything for the rest of this task (outward actions still ask)
+- **NO** — refuse
+- silence — timeout (default 5 min) refuses
 
-- `允许` — approve this one action
-- `全部允许` / `放行` — approve everything for the rest of this run (no more asks)
-- `拒绝` — deny it
-- silence — timeout (default 300s) denies automatically
-
-**`+free`**: the owner can summon with `@bot +free …` to skip approvals for that entire run up front. Only the owner's own @ gets this; anyone else's `+free` is ignored.
-
-Read-only shell detection is per-segment (`cd x && ls && cat y` counts as read-only) and fails closed on command substitution, backticks, and redirects. Codex runs stay hard-sandboxed read-only regardless — its approval wiring isn't built yet.
+Typing `允许` / `全部允许` / `拒绝` works the same; @-ing the bot in your reply is
+fine. `@bot +free <request>` pre-grants a whole task up front — owner only.
 
 ## 4. `config.json` (per machine, never committed)
 
 ```jsonc
 {
-  "bot_open_id":  "ou_...",       // your bot's open_id  (lark-cli auth status)
-  "owner_open_id": "ou_...",      // your own open_id — the only DM/approval the bridge obeys
-  "workdir": "~/work/my-repo",    // where headless agents run; use a dedicated checkout
-  "workdir_refresh_command": "git fetch -q origin && git reset -q --hard origin/main",
-                                   // optional; runs in workdir before every summon so the
-                                   // agent never reads stale code — use ONLY on a checkout
-                                   // dedicated to the bridge (it hard-resets!)
-  "allowed_read_roots": [],        // directories the agent may read WITHOUT asking
-                                   // (your repos, worktrees…); empty = workdir only
-  "context_messages": 40,          // how much recent chat the agent gets to read
-  "reply_style": "thread",        // "thread" keeps answers in topic threads;
-                                   // "chat" posts straight into the main flow
-                                   // (answers really @ the requester either way,
-                                   //  and approval asks really @ the owner)
-  "busy_model": "",               // fast model for busy-time side replies
-                                   // (e.g. "haiku"); empty = provider default
-  "ack_emoji": "THUMBSUP",        // default until you set your own via DM
-  "executor": { "provider": "claude", "model": "", "effort": "" },
-  "env_file": "~/.talk-to-my-agent/env",          // headless auth lives here (chmod 600)
+  "bot_open_id":   "ou_...",      // your bot   (lark-cli auth status → identities.bot.openId)
+  "owner_open_id": "ou_...",      // you        (→ identities.user.openId)
+  "workdir": "~/work/agent-tree", // where agents run; a checkout dedicated to them
+  "allowed_read_roots": [],       // extra dirs they may read freely (your repos)
+  "allowed_write_roots": [],      // extra dirs they may change freely (rare)
+  "context_messages": 20,          // how much backlog a brand-new agent reads
+  "ack_emoji": "THUMBSUP",        // until you set your own via DM
+  "model": "",                     // "" = engine default; DM `model opus` to change
+  "reply_style": "chat",          // "chat" = main flow, "thread" = threaded replies
   "approvals": { "enabled": true, "timeout_seconds": 300 },
-  "auto_allow_tools": "Read,Grep,Glob,LS,TodoWrite,Task,WebSearch",
-  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,ls,cat,head,tail,wc,find",
-  "claude_args": [],               // extra flags for `claude -p`, if you need any
-  "codex_args": ["--sandbox", "read-only", "--skip-git-repo-check"],
-  "run_timeout_seconds": 900,
+  "max_bot_chain": 3,              // consecutive agent→agent messages before it stops
+  "env_file": "~/.talk-to-my-agent/env",   // CLAUDE_CODE_OAUTH_TOKEN, proxies (chmod 600)
   "groups": []                     // chat_id allowlist; empty = every group the bot is in
 }
 ```
 
-The auto-allow lists plus the approval gate ARE the sandbox policy for Claude; `codex_args` is the policy for Codex. Widen them only if you understand what a group member can then make your machine do.
+`workdir` should be a checkout you don't personally edit — agents write there
+without asking. Your real working tree belongs in `allowed_read_roots` instead:
+readable, but changes ask.
 
-## 5. State
+## 5. State on disk
 
-`~/.talk-to-my-agent/state.json` holds your DM-set preferences, the thread→session map (that's what makes same-thread follow-ups continue the same session), and bookkeeping. Delete it any time; you only lose thread continuity.
+`~/.talk-to-my-agent/`
+
+- `home/<group>/CLAUDE.md` — each agent's long-term memory, written by itself
+- `home/shared/` — material every agent can read
+- `state.json` — session ids, watermarks, costs, your DM preferences
+- `grants/`, `summons/`, `approval.lock` — approval bookkeeping
+- `env` — headless auth token and proxies
+
+Deleting `state.json` makes everyone a new hire; their notes survive.

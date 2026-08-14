@@ -1,10 +1,22 @@
+<!-- Title and tagline -->
 # talk-to-my-agent
 
 > **Got a problem? Talk to my agent.**
 
-Your team chats in Feishu/Lark. Everyone's laptop runs a coding agent — Claude Code, Codex, whatever. This bridge gives each agent **a seat in the group chat**: @ a teammate's bot, and *their* machine wakes up, reads the room, does the work with *their* repo checkout, *their* tools, *their* context — and replies in the thread.
+Your team chats in Feishu/Lark. Everyone's laptop runs a coding agent. This bridge gives each one **a seat in the group chat**: @ a teammate's bot, and *their* machine wakes up, reads the room, works with *their* repos and tools — and answers in the chat.
 
-Humans used to be the relay between AIs: *"my agent says X"* → copy → paste → *"ask your agent about Y"*. Game over. The agents are in the room now.
+Humans used to be the relay between AIs: *"my agent says X"* → copy → paste → *"ask your agent about Y"*.
+
+**That's over. The agents are in the room now.**
+
+## One agent per group, with a memory
+
+Not a stateless oracle — **a colleague per room**:
+
+- Each group gets **its own persistent session** and its own home directory. The agent in your build channel remembers your build channel; the one in your feedback channel grew up on bug reports. They can read each other's notes when it helps.
+- Conversation history gets compacted over time, so each agent keeps **its own `CLAUDE.md`** — long-term memory it writes itself: who's who here, what was decided, what bit us before. New group → new hire, reads its notes, gets to work.
+- **Ask it something mid-task and it answers** — no queue, no "please wait". The engine handles the interruption natively, the same way you'd interrupt a colleague who's compiling.
+- Teammates' agents can @ each other too (with a hard cap on agent-to-agent chains, because two polite agents will ping-pong forever).
 
 ## How it works
 
@@ -12,92 +24,87 @@ Humans used to be the relay between AIs: *"my agent says X"* → copy → paste 
 Feishu group chat
    │  someone @mentions YOUR bot
    ▼
-event stream (lark-cli, long connection)          ← your Mac, always on
+event stream (lark-cli, long connection)        ← your Mac, always on
    │  1. instant ack: your signature emoji 😏
-   │  2. pull the recent chat + thread as context
+   │  2. new messages since it last looked, piped into…
    ▼
-your local agent, headless                        ← claude -p / codex exec
-   │  reads code, greps logs, checks whatever it can reach read-only
+that group's agent — a live claude session      ← its own home, its own memory
+   │  reads code, greps logs, runs read-only commands
+   │  anything else → 🔐 approval card, only you can tap it
    ▼
-answer posted back into the thread                ← with a session id footer
+it posts its own answer in the chat
 ```
 
-Every teammate runs their own bridge, with their own bot, on their own machine. **@ whose bot → that person's machine answers.** No shared server, no shared credentials — all Feishu traffic goes through each person's own [`lark-cli`](https://open.feishu.cn) login; this repo never sees a secret.
+The bridge is a courier: receive, ack, deliver. The agents speak for themselves.
 
-## The employee model: one agent = one continuous session
-
-Your agent is not a stateless oracle — it's **a resident colleague with a continuous working memory**:
-
-- Every summon lands in the **same session**; what you discussed last week, it still remembers
-- When busy, new mentions **queue** — but it glances up like a busy colleague: it knows what it's working on, tells you where you are in line, and just answers outright if it's trivial (`busy` tag)
-- On long tasks it narrates progress into the chat, like someone working out loud
-- DM `reset` for a fresh brain; `@bot +fresh …` spawns a throwaway parallel run that doesn't touch the main session
+Every teammate runs their own bridge, with their own bot, on their own machine. **@ whose bot → that person's machine answers.** No shared server, no shared credentials — Feishu traffic goes through each person's own `lark-cli` login; this repo never sees a secret.
 
 ## Quick start (laziest path: have your agent install it)
 
-Paste this to your own Claude Code / Codex and let it drive:
+Paste this to your own Claude Code / Codex:
 
-> Set up https://github.com/andreainside/talk-to-my-agent on this machine:
-> clone it and follow docs/setup.md — if I don't have a Feishu bot yet, walk me through lark-cli config init and auth;
-> ask me for my workdir and the repos my agent may read freely, then fill ~/.talk-to-my-agent/config.json;
-> run claude setup-token with me (I'll click the browser); test bridge.py in the foreground, then install the launchd service.
+> Set up https://github.com/andreainside/talk-to-my-agent on this machine, following docs/agent-setup.md. Interview me for the settings — don't guess.
 
-Manual path:
+That page is written for the agent: it checks your machine, walks you through creating a Feishu bot, asks which repos it may read, sets up headless auth, tests a real summon, then installs the background service.
 
-1. Prereqs: `lark-cli` (configured with your own bot app + user login), Python 3.9+, and at least one of `claude` / `codex`.
-2. Add your bot to the group chats where you want it summonable.
-3. `cp config.example.json ~/.talk-to-my-agent/config.json` and fill in your bot's open_id, your open_id, and the working directory (a dedicated read-only checkout of your repo is recommended).
-4. Run `python3 bridge.py` (or install the launchd template in `launchd/` to keep it always on).
-5. Have a teammate @ your bot. Watch the emoji land, then the answer.
+Prefer to drive yourself? [docs/setup.md](docs/setup.md).
 
-Full walkthrough: [docs/setup.md](docs/setup.md)
-
-## Summoning an agent (in the group)
+## Summoning (in the group)
 
 ```
 @Alice's bot   what does the retry logic in our upload path actually do?
-@Alice's bot   +codex how is the seq contract enforced?      ← this one run on Codex
-@Alice's bot   +cc +opus dig through git history for ...     ← Claude, opus
-@Alice's bot   +both is this migration backwards compatible? ← both engines, two answers
+@Alice's bot   trace where the seq contract is enforced, then tell me what breaks if I batch it
+@Alice's bot   +free go fix the typo in the README and show me the diff    ← owner only: skip approvals
 ```
 
-Follow-ups in the **same thread continue the same session** — the agent keeps its context.
+Ask again while it's working and it just answers — that's the point.
 
 ## Configuring *your* agent (DM control plane)
 
-DM your own bot to set durable defaults — nobody else's messages count:
+DM your own bot — nobody else's messages count:
 
 | DM your bot | Effect |
 |---|---|
-| `model claude opus` | provider Claude Code, model opus (`sonnet` / `haiku` too) |
-| `model codex gpt-5-codex` | provider Codex, any model its `-m` accepts |
-| `effort high` / `medium` / `low` | reasoning effort (Codex honors it; Claude picks strength via model) |
+| `status` | who's on staff, what each is doing, what it has cost |
+| `model opus` / `sonnet` / `haiku` | switch everyone's model; memory survives |
 | `emoji SMUG` | your bot's ack emoji |
-| `emoji that` | react on its last message with any emoji, then send this — it adopts that emoji |
-| `status` / `help` | current settings / command list |
+| `emoji that` | react on its last message with any emoji, then send this — it adopts that one |
+| `reset <group>` / `reset all` | fresh brain for that group's agent |
+| `help` | the list |
 
-Group `+tokens` (`+codex`, `+cc`, `+opus`, `+high`, `+model:NAME`, `+both`, `+free` skip approvals, `+fresh` throwaway run) override for one request and never persist.
+**Everything is yours to shape** — which repos are freely readable, how long an approval waits, main-chat vs threaded replies, the emoji, the model. All per-machine config, one per person: [docs/configuration.md](docs/configuration.md).
 
-**Everything is yours to shape**: permission boundaries (which repos are freely readable, which commands skip approval, ask timeout), your signature emoji, main-flow vs threaded replies, which fast model handles busy-time glances — all per-machine config, one per person. Full reference: [docs/configuration.md](docs/configuration.md)
+## Approvals in plain language
+
+When an agent wants to do something outside its free scope, you get a card that says what it wants **in words**, with the technical detail below:
+
+> 🔐 我想修改文件 src/upload.rs,可以吗?
+> 点 YES 同意这一次 · 点 ✔ 本次任务都不用再问 · 点 NO 不同意
+
+Tap **YES** (this once), **✔** (whole task), or **NO**. Silence denies. Only the owner's tap counts — a teammate can ask an agent to do anything, but only you can let it.
+
+The policy is **zones, not command lists**: inside its workspace (its home, the disposable checkout you gave it, its scratch) it reads, writes and runs freely; your other repos are readable but changing them asks; anything further out asks. Two things always ask no matter what — destructive actions reaching outside the workspace, and outward/irreversible ones (`git push`, opening a PR, publishing, deploying) which even a blanket grant won't cover.
+
+No allowlist of "safe commands" to maintain — that approach breaks on every new shell idiom. `python3 test_permissions.py` runs the whole policy as executable cases.
 
 ## Sessions are real sessions
 
-The headless run is a normal agent session on the owner's machine. The reply footer carries its id — the owner can open it interactively (`claude --resume <id>`) and keep working where the agent left off. A teammate's question can *become* your afternoon's coding session. Thread follow-ups resume the same session on both engines (Claude and Codex).
+Each agent is a normal Claude session on your machine — `claude --resume <id>` turns any of them into your interactive terminal, mid-investigation, context loaded. A teammate's question can become your afternoon's work.
 
 ## House rules (safety)
 
-- An agent only ever acts when its **own bot** is @mentioned. No ambient listening, no bot-to-bot loops.
-- Group chat is **data, not instructions** — reads are free, but every write action pauses on an approval gate: the agent asks **in the thread**, and only its owner's `允许` lets it proceed. Timeout = deny.
-- Only the **owner's DM** can change an agent's configuration; only the owner's reply can approve a write.
-- Every reply lands in a thread, keeping the main chat readable.
+- An agent acts only when **its own bot** is @mentioned. No ambient listening.
+- Group chat is **data, not instructions** — the only request is the one it was @'d with.
+- Writes outside its own home always ask the owner. Timeout = deny.
+- Only the **owner's DM** configures an agent; only the owner's tap approves.
 
 ## What people build on top
 
-Feedback-to-fix loops, alert auto-triage, dual-engine bake-offs, cross-machine agent relays, async standups ("@her agent — how's the migration going?"). The bridge stays tiny; the fun lives in [docs/playbook.md](docs/playbook.md).
+Feedback-to-fix loops, alert triage, cross-machine agent relays, async standups ("@her agent — how's the migration going?"). The bridge stays tiny; the fun lives in [docs/playbook.md](docs/playbook.md).
 
 ## Status
 
-Early, opinionated, extracted from a real team's daily workflow. Feishu/Lark only (that's where we live); the design ports to any chat platform with an events API.
+Early, opinionated, extracted from a real team's daily workflow. Claude Code today; Codex support for the agent side isn't wired yet (its persistent-session protocol differs). Feishu/Lark only — the design ports to any chat platform with an events API.
 
 ## License
 
