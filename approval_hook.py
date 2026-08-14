@@ -26,6 +26,8 @@ ENV = {
     "LARKSUITE_CLI_NO_SKILLS_NOTIFIER": "1",
 }
 
+QUOTED_SPAN = re.compile(r"\"[^\"]*\"|'[^']*'")
+
 ALLOW_WORDS = {"允许", "同意", "批准", "approve", "yes", "y", "ok"}
 ALLOW_ALL_WORDS = {"全部允许", "放行", "全部放行", "allow all", "approve all", "yolo"}
 DENY_WORDS = {"拒绝", "不允许", "不行", "deny", "no", "n"}
@@ -54,6 +56,10 @@ def bash_is_read_only(command, prefixes):
     cleaned = DEVNULL_REDIRECTS.sub(" ", command)
     if any(marker in cleaned for marker in UNSAFE_SUBSTRINGS):
         return False
+    # Quoted text is data, not shell syntax: a | inside --pretty=format:"%an|%s"
+    # is not a pipe. Blank quoted spans out (AFTER the unsafe check above, so
+    # nothing dangerous can hide in them) before splitting into segments.
+    cleaned = QUOTED_SPAN.sub("''", cleaned)
     segments = [segment.strip() for segment in SEGMENT_SPLIT.split(cleaned)]
     checked = 0
     for segment in segments:
