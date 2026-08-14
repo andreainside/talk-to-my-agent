@@ -60,6 +60,10 @@ Read-only tools and read-only shell prefixes (`auto_allow_tools` / `auto_allow_b
                                    // agent never reads stale code — use ONLY on a checkout
                                    // dedicated to the bridge (it hard-resets!)
   "context_messages": 40,          // how much recent chat the agent gets to read
+  "reply_style": "thread",        // "thread" keeps answers in topic threads;
+                                   // "chat" posts straight into the main flow
+                                   // (answers really @ the requester either way,
+                                   //  and approval asks really @ the owner)
   "ack_emoji": "THUMBSUP",        // default until you set your own via DM
   "executor": { "provider": "claude", "model": "", "effort": "" },
   "env_file": "~/.talk-to-my-agent/env",          // headless auth lives here (chmod 600)

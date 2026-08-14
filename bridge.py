@@ -183,14 +183,21 @@ def write_claude_settings(cfg):
     return path
 
 
-def hook_env(cfg, trigger_message_id):
+def hook_env(cfg, trigger_message_id, chat_id):
     return {
         "TTMA_TRIGGER_MSG_ID": trigger_message_id,
+        "TTMA_CHAT_ID": chat_id,
+        "TTMA_REPLY_STYLE": cfg.get("reply_style", "thread"),
         "TTMA_OWNER_OPEN_ID": cfg.get("owner_open_id", ""),
         "TTMA_APPROVAL_TIMEOUT": str((cfg.get("approvals") or {}).get("timeout_seconds", 300)),
         "TTMA_AUTO_ALLOW_TOOLS": cfg.get("auto_allow_tools", DEFAULT_AUTO_ALLOW_TOOLS),
         "TTMA_AUTO_ALLOW_BASH": cfg.get("auto_allow_bash_prefixes", DEFAULT_AUTO_ALLOW_BASH),
     }
+
+
+def mention(open_id):
+    """A REAL Feishu @ (notifies) — plain '@Name' text is just decoration."""
+    return f'<at user_id="{open_id}"></at> ' if open_id else ""
 
 
 # --------------------------------------------------------------- executors --
@@ -408,8 +415,10 @@ def handle_task(cfg, state, event):
     ack = state.get("prefs", {}).get("ack_emoji") or cfg.get("ack_emoji", "THUMBSUP")
     react(message_id, ack)
     prefs, request = parse_routing(request_raw, prefs_saved)
+    style_in_thread = cfg.get("reply_style", "thread") != "chat"
     if not request:
-        reply(message_id, "(mention received but the request was empty)", markdown=False)
+        reply(message_id, "(mention received but the request was empty)",
+              in_thread=style_in_thread, markdown=False)
         return
 
     refresh = cfg.get("workdir_refresh_command")
@@ -426,14 +435,16 @@ def handle_task(cfg, state, event):
     thread_key = event.get("thread_id") or event.get("parent_id") or message_id
     thread_lines = fetch_thread(event["thread_id"]) if event.get("thread_id") else []
     prompt = build_prompt(cfg, context_lines, thread_lines, request)
-    extra_env = hook_env(cfg, message_id)
+    extra_env = hook_env(cfg, message_id, event["chat_id"])
+    in_thread = style_in_thread
+    at_requester = mention(event.get("sender_id"))
 
     providers = ["claude", "codex"] if prefs.get("provider") == "both" else [prefs.get("provider", "claude")]
     sessions = thread_sessions(state, thread_key)
     for provider in providers:
         runner = PROVIDERS.get(provider)
         if not runner:
-            reply(message_id, f"(unknown provider: {provider})", markdown=False)
+            reply(message_id, f"(unknown provider: {provider})", in_thread=in_thread, markdown=False)
             continue
         try:
             answer, session_id = runner(
@@ -448,7 +459,14 @@ def handle_task(cfg, state, event):
         if session_id:
             footer += f" `session:{session_id}`"
             sessions[provider] = session_id
-        reply(message_id, (answer or "(empty answer)") + footer)
+        result = reply(
+            message_id, at_requester + (answer or "(empty answer)") + footer,
+            in_thread=in_thread,
+        )
+        bot_message_id = (result.get("data") or {}).get("message_id")
+        if bot_message_id and session_id:
+            # quote-replying the bot's answer continues the same session
+            state.setdefault("threads", {})[bot_message_id] = sessions
     save_state(state)
 
 

@@ -84,8 +84,25 @@ def decide(allow, reason):
     sys.exit(0)
 
 
-def thread_messages(trigger_id):
-    envelope = lark("im", "+threads-messages-list", "--thread", trigger_id, "--order", "desc")
+STYLE = os.environ.get("TTMA_REPLY_STYLE", "thread")
+CHAT_ID = os.environ.get("TTMA_CHAT_ID", "")
+
+
+def post(trigger_id, text):
+    args = ["im", "+messages-reply", "--as", "bot", "--message-id", trigger_id]
+    if STYLE != "chat":
+        args.append("--reply-in-thread")
+    args += ["--text", text]
+    return lark(*args)
+
+
+def recent_messages(trigger_id):
+    """Where we look for the owner's 允许/拒绝: the thread, or the chat itself."""
+    if STYLE == "chat" and CHAT_ID:
+        envelope = lark("im", "+chat-messages-list", "--as", "user",
+                        "--chat-id", CHAT_ID, "--order", "desc", "--page-size", "20")
+    else:
+        envelope = lark("im", "+threads-messages-list", "--thread", trigger_id, "--order", "desc")
     return (envelope.get("data") or {}).get("messages") or []
 
 
@@ -108,23 +125,23 @@ def main():
     if not trigger or not owner:
         decide(False, "no approval channel configured — denied by default")
 
-    # Snapshot the thread BEFORE asking, so old 允许/拒绝 messages can't leak in.
-    baseline = {m.get("message_id") for m in thread_messages(trigger)}
+    # Snapshot BEFORE asking, so old 允许/拒绝 messages can't leak in.
+    baseline = {m.get("message_id") for m in recent_messages(trigger)}
 
     compact = json.dumps(tool_input, ensure_ascii=False)
     if len(compact) > 280:
         compact = compact[:280] + "…"
-    lark(
-        "im", "+messages-reply", "--as", "bot", "--message-id", trigger,
-        "--reply-in-thread", "--text",
-        f"🔐 需要授权才能继续:\n{tool} {compact}\n"
-        f"owner 在本 thread 回复「允许」或「拒绝」({timeout_s}s 超时自动拒绝)",
+    where = "回复" if STYLE == "chat" else "在本 thread 回复"
+    post(
+        trigger,
+        f'<at user_id="{owner}"></at> 🔐 需要授权才能继续:\n{tool} {compact}\n'
+        f"{where}「允许」或「拒绝」({timeout_s}s 超时自动拒绝)",
     )
 
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         time.sleep(6)
-        for message in thread_messages(trigger):
+        for message in recent_messages(trigger):
             if message.get("message_id") in baseline:
                 continue
             sender = message.get("sender") or {}
@@ -138,10 +155,7 @@ def main():
             if text in DENY_WORDS or any(text.startswith(w) for w in ("拒绝", "不允许", "不行")):
                 decide(False, "owner denied in thread")
 
-    lark(
-        "im", "+messages-reply", "--as", "bot", "--message-id", trigger,
-        "--reply-in-thread", "--text", "⏳ 授权超时,该操作已自动拒绝。",
-    )
+    post(trigger, "⏳ 授权超时,该操作已自动拒绝。")
     decide(False, f"approval timed out after {timeout_s}s")
 
 

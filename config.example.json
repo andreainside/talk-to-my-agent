@@ -24,5 +24,6 @@
     "--skip-git-repo-check"
   ],
   "run_timeout_seconds": 900,
-  "groups": []
+  "groups": [],
+  "reply_style": "thread"
 }
