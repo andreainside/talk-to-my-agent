@@ -199,8 +199,9 @@ def run_claude(cfg, prefs, prompt, resume=None, extra_env=None):
     cmd += cfg.get("claude_args", [])
     if approvals_enabled(cfg):
         cmd += ["--settings", str(cfg["_claude_settings_path"])]
-    if prefs.get("model"):
-        cmd += ["--model", prefs["model"]]
+    model = normalize_model("claude", prefs.get("model") or "")
+    if model:
+        cmd += ["--model", model]
     if resume:
         cmd += ["--resume", resume]
     proc = subprocess.run(
@@ -260,6 +261,23 @@ PROVIDERS = {"claude": run_claude, "codex": run_codex}
 
 # ----------------------------------------------------------------- routing --
 
+def normalize_model(provider, model):
+    """Fix the model names people actually type: opus5/opus-5/Opus → opus, etc.
+
+    Claude Code only accepts the aliases opus/sonnet/haiku or full model ids;
+    'opus5' errors the whole run. Codex names pass through untouched.
+    """
+    if provider != "claude" or not model:
+        return model
+    lowered = model.lower()
+    if lowered.startswith("claude-"):
+        return lowered
+    for alias in ("opus", "sonnet", "haiku"):
+        if lowered.rstrip("0123456789.-_ ") == alias:
+            return alias
+    return model
+
+
 TOKEN_ALIASES = {
     "+cc": ("provider", "claude"), "+claude": ("provider", "claude"),
     "+codex": ("provider", "codex"), "+both": ("provider", "both"),
@@ -314,8 +332,11 @@ def handle_command(cfg, state, event):
         )
     elif words and words[0] == "model" and len(words) >= 2 and words[1] in PROVIDERS:
         prefs["provider"] = words[1]
-        prefs["model"] = words[2] if len(words) > 2 else ""
+        raw_model = words[2] if len(words) > 2 else ""
+        prefs["model"] = normalize_model(prefs["provider"], raw_model)
         answer = f"ok — provider={prefs['provider']}" + (f", model={prefs['model']}" if prefs["model"] else "")
+        if raw_model and prefs["model"] != raw_model:
+            answer += f" (normalized from '{raw_model}')"
     elif words and words[0] == "effort" and len(words) == 2 and words[1] in ("low", "medium", "high"):
         prefs["effort"] = words[1]
         answer = f"ok — effort={words[1]} (applies where the provider supports it)"
