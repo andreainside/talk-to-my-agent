@@ -1,0 +1,12 @@
+{
+  "bot_open_id": "ou_YOUR_BOT_OPEN_ID",
+  "owner_open_id": "ou_YOUR_OWN_OPEN_ID",
+  "workdir": "~/work/your-repo",
+  "context_messages": 40,
+  "ack_emoji": "THUMBSUP",
+  "executor": { "provider": "claude", "model": "", "effort": "" },
+  "claude_args": ["--allowedTools", "Read,Grep,Glob,Bash(git log:*),Bash(git show:*),Bash(rg:*)"],
+  "codex_args": ["--sandbox", "read-only"],
+  "run_timeout_seconds": 900,
+  "groups": []
+}
