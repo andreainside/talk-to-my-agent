@@ -22,6 +22,16 @@ cp config.example.json ~/.talk-to-my-agent/config.json
 $EDITOR ~/.talk-to-my-agent/config.json     # fill in the ids and workdir
 ```
 
+**Headless auth (don't skip):** your interactive `claude` login does not carry over to headless `-p` runs — without this step every summon answers `403 Request not allowed`. Mint a long-lived token and put it in the bridge's env file:
+
+```bash
+claude setup-token    # follow the browser flow, copy the token it prints
+touch ~/.talk-to-my-agent/env && chmod 600 ~/.talk-to-my-agent/env
+echo 'CLAUDE_CODE_OAUTH_TOKEN=<paste-token-here>' >> ~/.talk-to-my-agent/env
+```
+
+Codex needs nothing extra — its normal `codex` login works headless.
+
 **Workdir**: give the agent a dedicated checkout of your repo (not the one you're editing in), and keep it fresh — a `git fetch && git reset --hard origin/main` cron, or just let the agent be told it may be slightly behind. Never point it at a dirty working tree you care about.
 
 ## 3. Run it
@@ -59,5 +69,6 @@ DM your bot `model claude` / `model codex` to pick your default; see [configurat
 |---|---|
 | No emoji, no answer | bridge not running, or bot not actually in that group |
 | Emoji but no answer | executor failed/timed out — check `bridge.log`; the bridge also posts the error into the thread |
+| `403 Request not allowed` in the reply | headless auth missing — do the `claude setup-token` step above |
 | `access denied` reading history | user identity missing read scopes, or you're not a member of that group |
 | Bot can't be @'d | bots must be group members to be mentionable |

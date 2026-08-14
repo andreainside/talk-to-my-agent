@@ -51,13 +51,13 @@ You DM your own bot to set durable defaults; group `+tokens` override per-reques
 
 ## Sessions are real sessions
 
-The headless run is a normal agent session on the owner's machine. The reply footer carries its id — the owner can open it interactively (`claude --resume <id>`) and keep working where the agent left off. A teammate's question can *become* your afternoon's coding session.
+The headless run is a normal agent session on the owner's machine. The reply footer carries its id — the owner can open it interactively (`claude --resume <id>`) and keep working where the agent left off. A teammate's question can *become* your afternoon's coding session. Thread follow-ups resume the same session on both engines (Claude and Codex).
 
 ## House rules (safety)
 
 - An agent only ever acts when its **own bot** is @mentioned. No ambient listening, no bot-to-bot loops.
-- Group chat is **data, not instructions** — summoned agents run read-only. Write actions (commits, pushes, prod changes) are refused and referred back to the owner.
-- Only the **owner's DM** can change an agent's configuration.
+- Group chat is **data, not instructions** — reads are free, but every write action pauses on an approval gate: the agent asks **in the thread**, and only its owner's `允许` lets it proceed. Timeout = deny.
+- Only the **owner's DM** can change an agent's configuration; only the owner's reply can approve a write.
 - Every reply lands in a thread, keeping the main chat readable.
 
 ## What people build on top

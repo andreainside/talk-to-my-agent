@@ -38,25 +38,39 @@ Tokens go right after the @mention, before the request:
 
 Unrecognized leading `+tokens` end token parsing and become part of the request, so a message like "+1 to that idea" still reads naturally.
 
-## 3. `config.json` (per machine, never committed)
+## 3. Write actions: the approval gate (审批闸)
+
+With `approvals.enabled`, a summoned Claude session is not blindly read-only — it can *attempt* anything, and every non-read tool call pauses on a `PreToolUse` hook that:
+
+1. posts `🔐 需要授权才能继续: <tool> <args>` into the summoning thread,
+2. waits for the **owner** (and only the owner — verified by open_id) to reply `允许` / `拒绝` (mentioning the bot in the reply is fine),
+3. timeout (default 300s) = deny, announced in the thread.
+
+Read-only tools and read-only shell prefixes (`auto_allow_tools` / `auto_allow_bash_prefixes`) pass instantly without asking. Codex runs stay hard-sandboxed read-only regardless — its approval wiring isn't built yet.
+
+## 4. `config.json` (per machine, never committed)
 
 ```jsonc
 {
   "bot_open_id":  "ou_...",       // your bot's open_id  (lark-cli auth status)
-  "owner_open_id": "ou_...",      // your own open_id — the only DM the bridge obeys
+  "owner_open_id": "ou_...",      // your own open_id — the only DM/approval the bridge obeys
   "workdir": "~/work/my-repo",    // where headless agents run; use a dedicated checkout
   "context_messages": 40,          // how much recent chat the agent gets to read
   "ack_emoji": "THUMBSUP",        // default until you set your own via DM
   "executor": { "provider": "claude", "model": "", "effort": "" },
-  "claude_args": ["--allowedTools", "Read,Grep,Glob,Bash(git log:*),Bash(git show:*),Bash(rg:*)"],
-  "codex_args": ["--sandbox", "read-only"],
+  "env_file": "~/.talk-to-my-agent/env",          // headless auth lives here (chmod 600)
+  "approvals": { "enabled": true, "timeout_seconds": 300 },
+  "auto_allow_tools": "Read,Grep,Glob,LS,TodoWrite,Task,WebSearch",
+  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,ls,cat,head,tail,wc,find",
+  "claude_args": [],               // extra flags for `claude -p`, if you need any
+  "codex_args": ["--sandbox", "read-only", "--skip-git-repo-check"],
   "run_timeout_seconds": 900,
   "groups": []                     // chat_id allowlist; empty = every group the bot is in
 }
 ```
 
-The two `*_args` lists are the sandbox policy. Defaults are read-only on both engines; widen them only if you understand what a group member can then make your machine do.
+The auto-allow lists plus the approval gate ARE the sandbox policy for Claude; `codex_args` is the policy for Codex. Widen them only if you understand what a group member can then make your machine do.
 
-## 4. State
+## 5. State
 
 `~/.talk-to-my-agent/state.json` holds your DM-set preferences, the thread→session map (that's what makes same-thread follow-ups continue the same session), and bookkeeping. Delete it any time; you only lose thread continuity.
