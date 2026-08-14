@@ -12,6 +12,7 @@ variables set by bridge.py.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -31,6 +32,33 @@ def strip_mentions(content, mentions):
     for mention in mentions or []:
         content = content.replace(f"@{mention.get('name', '')}", " ")
     return " ".join(content.split()).strip()
+
+
+SEGMENT_SPLIT = re.compile(r"&&|\|\||;|\||\n")
+DEVNULL_REDIRECTS = re.compile(r"\d?>\s*/dev/null")
+UNSAFE_SUBSTRINGS = ("$(", "`", ">", "<(")
+
+
+def bash_is_read_only(command, prefixes):
+    """True only when EVERY chained segment starts with an allowed read prefix.
+
+    Agents habitually write `cd x && ls && cat y` — plain prefix matching sees
+    only the `cd` and gates a pure read. Split on the chain operators and check
+    each piece; command substitution / backticks / redirects (except >/dev/null)
+    fail closed, since they can smuggle writes into a read-looking command.
+    """
+    cleaned = DEVNULL_REDIRECTS.sub(" ", command)
+    if any(marker in cleaned for marker in UNSAFE_SUBSTRINGS):
+        return False
+    segments = [segment.strip() for segment in SEGMENT_SPLIT.split(cleaned)]
+    checked = 0
+    for segment in segments:
+        if not segment:
+            continue
+        if not any(segment == p or segment.startswith(p + " ") for p in prefixes):
+            return False
+        checked += 1
+    return checked > 0
 
 
 def lark(*args, timeout=60):
@@ -71,10 +99,8 @@ def main():
 
     if tool in auto_tools:
         decide(True, "read-only tool")
-    if tool == "Bash":
-        command = (tool_input.get("command") or "").strip()
-        if any(command == p or command.startswith(p + " ") for p in auto_bash):
-            decide(True, "read-only command")
+    if tool == "Bash" and bash_is_read_only((tool_input.get("command") or "").strip(), auto_bash):
+        decide(True, "read-only command")
 
     trigger = os.environ.get("TTMA_TRIGGER_MSG_ID")
     owner = os.environ.get("TTMA_OWNER_OPEN_ID")

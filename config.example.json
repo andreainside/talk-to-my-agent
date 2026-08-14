@@ -5,13 +5,24 @@
   "workdir_refresh_command": "",
   "context_messages": 40,
   "ack_emoji": "THUMBSUP",
-  "executor": { "provider": "claude", "model": "", "effort": "" },
+  "executor": {
+    "provider": "claude",
+    "model": "",
+    "effort": ""
+  },
   "env_file": "~/.talk-to-my-agent/env",
-  "approvals": { "enabled": true, "timeout_seconds": 300 },
+  "approvals": {
+    "enabled": true,
+    "timeout_seconds": 300
+  },
   "auto_allow_tools": "Read,Grep,Glob,LS,TodoWrite,Task,WebSearch",
-  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,ls,cat,head,tail,wc,find",
+  "auto_allow_bash_prefixes": "git log,git show,git diff,git status,git grep,git branch,rg,grep,ls,cat,head,tail,wc,find,cd,echo,pwd,which",
   "claude_args": [],
-  "codex_args": ["--sandbox", "read-only", "--skip-git-repo-check"],
+  "codex_args": [
+    "--sandbox",
+    "read-only",
+    "--skip-git-repo-check"
+  ],
   "run_timeout_seconds": 900,
   "groups": []
 }
