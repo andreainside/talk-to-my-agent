@@ -11,6 +11,9 @@ its surface forms breaks on every new shell idiom. Instead:
                → it may read freely; changing things here asks
   outside      → asks
 
+Each ask posts its own card and is answered on that card (a tap, or a reply),
+so parallel asks never steal each other's verdict.
+
 plus two short, *semantic* lists: destructive verbs (only matter outside the
 write zone) and outward/irreversible actions (always ask, even under a blanket
 grant, because pushing or publishing cannot be undone by the owner later).
@@ -23,7 +26,6 @@ Claude Code invokes this with the tool call as JSON on stdin; we answer with a
 permissionDecision on stdout. Context arrives via TTMA_* environment variables.
 """
 
-import atexit
 import json
 import os
 import re
@@ -34,7 +36,6 @@ from pathlib import Path
 
 STATE_DIR = Path(os.environ.get("TTMA_HOME", Path.home() / ".talk-to-my-agent"))
 GRANTS_DIR = STATE_DIR / "grants"
-ASK_LOCK = STATE_DIR / "approval.lock"
 
 ENV = {
     **os.environ,
@@ -230,33 +231,6 @@ def ask_text(owner, tool, tool_input, why, timeout_s):
 
 # ------------------------------------------------------------ ask plumbing --
 
-def acquire_ask_lock(max_wait, session_id):
-    """One outstanding 🔐 at a time, so one YES answers exactly one ask."""
-    deadline = time.time() + max_wait
-    while time.time() < deadline:
-        if session_id and (GRANTS_DIR / session_id).exists():
-            return "granted"
-        try:
-            os.mkdir(ASK_LOCK)
-            return "locked"
-        except FileExistsError:
-            try:
-                if time.time() - ASK_LOCK.stat().st_mtime > max_wait + 120:
-                    os.rmdir(ASK_LOCK)
-                    continue
-            except OSError:
-                pass
-            time.sleep(3)
-    return "timeout"
-
-
-def release_ask_lock():
-    try:
-        os.rmdir(ASK_LOCK)
-    except OSError:
-        pass
-
-
 def grant_session(session_id):
     if session_id:
         GRANTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -270,12 +244,8 @@ def ask_owner(tool, tool_input, why, session_id, blanket_ok=True):
     if not trigger or not owner:
         decide(False, "no approval channel configured — denied by default")
 
-    outcome = acquire_ask_lock(timeout_s * 2, session_id if blanket_ok else "")
-    if outcome == "granted":
+    if blanket_ok and session_id and (GRANTS_DIR / session_id).exists():
         decide(True, "owner granted the whole task")
-    if outcome == "timeout":
-        decide(False, "approval queue congested — denied")
-    atexit.register(release_ask_lock)
 
     baseline = {m.get("message_id") for m in recent_messages(trigger, chat_id)}
     result = post(trigger, ask_text(owner, tool, tool_input, why, timeout_s))
