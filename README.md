@@ -47,7 +47,18 @@ Follow-ups in the **same thread continue the same session** — the agent keeps 
 
 ## Configuring *your* agent (DM control plane)
 
-You DM your own bot to set durable defaults; group `+tokens` override per-request. Provider, model, reasoning effort, and your ack emoji are all yours to pick — including `emoji that`, which adopts whatever emoji you just reacted with. Details: [docs/configuration.md](docs/configuration.md)
+DM your own bot to set durable defaults — nobody else's messages count:
+
+| DM your bot | Effect |
+|---|---|
+| `model claude opus` | provider Claude Code, model opus (`sonnet` / `haiku` too) |
+| `model codex gpt-5-codex` | provider Codex, any model its `-m` accepts |
+| `effort high` / `medium` / `low` | reasoning effort (Codex honors it; Claude picks strength via model) |
+| `emoji SMUG` | your bot's ack emoji |
+| `emoji that` | react on its last message with any emoji, then send this — it adopts that emoji |
+| `status` / `help` | current settings / command list |
+
+Group `+tokens` (`+codex`, `+cc`, `+opus`, `+high`, `+model:NAME`, `+both`) override for one request and never persist. Full reference: [docs/configuration.md](docs/configuration.md)
 
 ## Sessions are real sessions
 

@@ -49,7 +49,18 @@
 
 ## 配置你自己的 agent(私聊控制面)
 
-私聊自己的 bot 设定持久默认值;群里的 `+token` 是单次覆盖。用哪家、哪个型号、什么推理强度、回什么表情,全是你自己的事——包括 `emoji that`:你刚在它消息上点了什么表情,它就认领哪个当自己的签名。详见:[docs/configuration.md](docs/configuration.md)
+私聊自己的 bot 设持久默认——别人的消息一概无效:
+
+| 私聊发 | 效果 |
+|---|---|
+| `model claude opus` | 用 Claude Code + opus 型号(`sonnet` / `haiku` 同理) |
+| `model codex gpt-5-codex` | 用 Codex + 任意它 `-m` 认的型号名 |
+| `effort high` / `medium` / `low` | 推理强度(Codex 生效;Claude 靠选型号定强度) |
+| `emoji SMUG` | 换 bot 的签名表情 |
+| `emoji that` | 先在它上一条消息点你想要的表情,再发这句,它自动认领 |
+| `status` / `help` | 看当前设置 / 命令列表 |
+
+群里的 `+token`(`+codex`、`+cc`、`+opus`、`+high`、`+model:名字`、`+both`)是单次覆盖,不落盘。完整说明:[docs/configuration.md](docs/configuration.md)
 
 ## 会话是真实的会话
 

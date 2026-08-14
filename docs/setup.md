@@ -47,10 +47,13 @@ Have someone @ your bot in a group. You should see: instant emoji → (up to a f
 Then keep it alive with launchd (macOS):
 
 ```bash
-sed -e "s|__PROJECT_DIR__|$(pwd)|" -e "s|__HOME__|$HOME|" launchd/com.talk-to-my-agent.plist.example \
+sed -e "s|__PROJECT_DIR__|$(pwd)|" -e "s|__HOME__|$HOME|" -e "s|__PATH__|$PATH|" \
+  launchd/com.talk-to-my-agent.plist.example \
   > ~/Library/LaunchAgents/com.talk-to-my-agent.plist
 launchctl load ~/Library/LaunchAgents/com.talk-to-my-agent.plist
 ```
+
+This survives reboots: `RunAtLoad` starts the bridge at login, `KeepAlive` restarts it if it dies. Configure once, forget it. (The `__PATH__` substitution matters — launchd's default PATH can't find `lark-cli`/`claude`/`codex`.)
 
 Logs land in `~/.talk-to-my-agent/bridge.log`.
 

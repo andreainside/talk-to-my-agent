@@ -11,6 +11,13 @@
   </array>
   <key>WorkingDirectory</key>
   <string>__PROJECT_DIR__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd's default PATH misses nvm/homebrew/user bins where
+         lark-cli / claude / codex live; __PATH__ is filled from your shell -->
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>

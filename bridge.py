@@ -388,6 +388,16 @@ def handle_task(cfg, state, event):
         reply(message_id, "(mention received but the request was empty)", markdown=False)
         return
 
+    refresh = cfg.get("workdir_refresh_command")
+    if refresh:
+        try:
+            subprocess.run(
+                refresh, shell=True, cwd=Path(cfg["workdir"]).expanduser(),
+                capture_output=True, timeout=180, env=executor_env(cfg),
+            )
+        except Exception:  # noqa: BLE001 - a stale checkout beats a dead summon
+            pass
+
     context_lines = fetch_context(cfg, event["chat_id"], cfg.get("context_messages", 40))
     thread_key = event.get("thread_id") or event.get("parent_id") or message_id
     thread_lines = fetch_thread(event["thread_id"]) if event.get("thread_id") else []

@@ -55,6 +55,10 @@ Read-only tools and read-only shell prefixes (`auto_allow_tools` / `auto_allow_b
   "bot_open_id":  "ou_...",       // your bot's open_id  (lark-cli auth status)
   "owner_open_id": "ou_...",      // your own open_id — the only DM/approval the bridge obeys
   "workdir": "~/work/my-repo",    // where headless agents run; use a dedicated checkout
+  "workdir_refresh_command": "git fetch -q origin && git reset -q --hard origin/main",
+                                   // optional; runs in workdir before every summon so the
+                                   // agent never reads stale code — use ONLY on a checkout
+                                   // dedicated to the bridge (it hard-resets!)
   "context_messages": 40,          // how much recent chat the agent gets to read
   "ack_emoji": "THUMBSUP",        // default until you set your own via DM
   "executor": { "provider": "claude", "model": "", "effort": "" },
