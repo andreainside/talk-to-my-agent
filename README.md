@@ -24,7 +24,25 @@ answer posted back into the thread                ← with a session id footer
 
 Every teammate runs their own bridge, with their own bot, on their own machine. **@ whose bot → that person's machine answers.** No shared server, no shared credentials — all Feishu traffic goes through each person's own [`lark-cli`](https://open.feishu.cn) login; this repo never sees a secret.
 
-## Quick start
+## The employee model: one agent = one continuous session
+
+Your agent is not a stateless oracle — it's **a resident colleague with a continuous working memory**:
+
+- Every summon lands in the **same session**; what you discussed last week, it still remembers
+- When busy, new mentions **queue** — but it glances up like a busy colleague: it knows what it's working on, tells you where you are in line, and just answers outright if it's trivial (`busy` tag)
+- On long tasks it narrates progress into the chat, like someone working out loud
+- DM `reset` for a fresh brain; `@bot +fresh …` spawns a throwaway parallel run that doesn't touch the main session
+
+## Quick start (laziest path: have your agent install it)
+
+Paste this to your own Claude Code / Codex and let it drive:
+
+> Set up https://github.com/andreainside/talk-to-my-agent on this machine:
+> clone it and follow docs/setup.md — if I don't have a Feishu bot yet, walk me through lark-cli config init and auth;
+> ask me for my workdir and the repos my agent may read freely, then fill ~/.talk-to-my-agent/config.json;
+> run claude setup-token with me (I'll click the browser); test bridge.py in the foreground, then install the launchd service.
+
+Manual path:
 
 1. Prereqs: `lark-cli` (configured with your own bot app + user login), Python 3.9+, and at least one of `claude` / `codex`.
 2. Add your bot to the group chats where you want it summonable.
@@ -58,7 +76,9 @@ DM your own bot to set durable defaults — nobody else's messages count:
 | `emoji that` | react on its last message with any emoji, then send this — it adopts that emoji |
 | `status` / `help` | current settings / command list |
 
-Group `+tokens` (`+codex`, `+cc`, `+opus`, `+high`, `+model:NAME`, `+both`) override for one request and never persist. Full reference: [docs/configuration.md](docs/configuration.md)
+Group `+tokens` (`+codex`, `+cc`, `+opus`, `+high`, `+model:NAME`, `+both`, `+free` skip approvals, `+fresh` throwaway run) override for one request and never persist.
+
+**Everything is yours to shape**: permission boundaries (which repos are freely readable, which commands skip approval, ask timeout), your signature emoji, main-flow vs threaded replies, which fast model handles busy-time glances — all per-machine config, one per person. Full reference: [docs/configuration.md](docs/configuration.md)
 
 ## Sessions are real sessions
 

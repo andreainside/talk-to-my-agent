@@ -16,6 +16,7 @@ DM your own bot. Commands are plain text:
 | `effort low` / `effort medium` / `effort high` | reasoning effort |
 | `emoji SMUG` | set the ack emoji your bot drops when summoned |
 | `emoji that` | adopt whatever emoji **you just reacted** on the bot's last DM message |
+| `reset` | fresh brain — abandon the persistent session; the next summon starts a new one |
 | `help` | command list |
 
 Notes:
@@ -79,6 +80,8 @@ Read-only shell detection is per-segment (`cd x && ls && cat y` counts as read-o
                                    // "chat" posts straight into the main flow
                                    // (answers really @ the requester either way,
                                    //  and approval asks really @ the owner)
+  "busy_model": "",               // fast model for busy-time side replies
+                                   // (e.g. "haiku"); empty = provider default
   "ack_emoji": "THUMBSUP",        // default until you set your own via DM
   "executor": { "provider": "claude", "model": "", "effort": "" },
   "env_file": "~/.talk-to-my-agent/env",          // headless auth lives here (chmod 600)

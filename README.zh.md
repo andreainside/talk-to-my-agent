@@ -26,7 +26,25 @@
 
 每人在自己机器上跑自己的桥、用自己的 bot。**@ 谁的 bot,谁的机器来答。**没有共享服务器、没有共享凭证——所有飞书流量走每个人自己的 `lark-cli` 登录态,这个仓库碰不到任何秘密。
 
-## 快速开始
+## 员工模式:一个 agent = 一条持续会话
+
+你的 agent 不是无状态的问答机,而是**一名有连续工作记忆的常驻同事**:
+
+- 所有 @ 进入**同一条会话**——上周聊过的话题,这周它还记得
+- 忙的时候新 @ 会**排队**,但它会像忙碌的同事一样抬头应一声:知道自己手头在干什么、你排在第几、是小事就顺口直接答(`busy` 角标)
+- 长任务它会主动在群里播报进展,像在工位上出声干活
+- 私聊发 `reset` 给它换一个新脑子;`@bot +fresh …` 派一个一次性分身并行跑,不占主会话
+
+## 快速开始(最省事的方式:让你的 Agent 替你装)
+
+把下面这段直接粘给你自己的 Claude Code / Codex,它会带着你走完全程:
+
+> 帮我在这台机器上部署 https://github.com/andreainside/talk-to-my-agent :
+> clone 仓库,按 docs/setup.md 走——如果我还没有飞书 bot,带我跑 lark-cli config init 和授权;
+> 问我要工作目录和允许自由阅读的仓库列表,填好 ~/.talk-to-my-agent/config.json;
+> 陪我跑 claude setup-token(需要我点浏览器);先前台跑 bridge.py 测通,再装 launchd 常驻服务。
+
+手动路线:
 
 1. 前置:`lark-cli`(配好你自己的 bot 应用 + 用户登录)、Python 3.9+、`claude` / `codex` 至少一个。
 2. 把你的 bot 拉进你希望它能被召唤的群。
@@ -60,7 +78,9 @@
 | `emoji that` | 先在它上一条消息点你想要的表情,再发这句,它自动认领 |
 | `status` / `help` | 看当前设置 / 命令列表 |
 
-群里的 `+token`(`+codex`、`+cc`、`+opus`、`+high`、`+model:名字`、`+both`)是单次覆盖,不落盘。完整说明:[docs/configuration.md](docs/configuration.md)
+群里的 `+token`(`+codex`、`+cc`、`+opus`、`+high`、`+model:名字`、`+both`、`+free` 免审批、`+fresh` 一次性分身)是单次覆盖,不落盘。
+
+**一切都是你自己的**:权限边界(哪些仓库可自由读、哪些命令免审批、审批超时)、签名表情、回复进主群还是 thread、忙时快速应答用什么小模型——全在你本机的 config 里,每人一套。完整说明:[docs/configuration.md](docs/configuration.md)
 
 ## 会话是真实的会话
 

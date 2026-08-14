@@ -10,6 +10,7 @@ a permissionDecision on stdout. Context arrives via TTMA_* environment
 variables set by bridge.py.
 """
 
+import atexit
 import json
 import os
 import re
@@ -19,6 +20,36 @@ import time
 from pathlib import Path
 
 GRANTS_DIR = Path(os.environ.get("TTMA_HOME", Path.home() / ".talk-to-my-agent")) / "grants"
+ASK_LOCK = GRANTS_DIR.parent / "approval.lock"
+
+
+def acquire_ask_lock(max_wait, session_id):
+    """One outstanding 🔐 at a time: parallel tool calls otherwise flood the chat
+    and a single 允许 gets consumed by every waiting poller at once. Returns
+    'granted' if a blanket grant appears while waiting (skip asking entirely)."""
+    deadline = time.time() + max_wait
+    while time.time() < deadline:
+        if session_id and (GRANTS_DIR / session_id).exists():
+            return "granted"
+        try:
+            os.mkdir(ASK_LOCK)
+            return "locked"
+        except FileExistsError:
+            try:
+                if time.time() - ASK_LOCK.stat().st_mtime > max_wait + 120:
+                    os.rmdir(ASK_LOCK)  # stale lock from a dead hook
+                    continue
+            except OSError:
+                pass
+            time.sleep(3)
+    return "timeout"
+
+
+def release_ask_lock():
+    try:
+        os.rmdir(ASK_LOCK)
+    except OSError:
+        pass
 
 ENV = {
     **os.environ,
@@ -161,6 +192,16 @@ def main():
     timeout_s = int(os.environ.get("TTMA_APPROVAL_TIMEOUT", "300"))
     if not trigger or not owner:
         decide(False, "no approval channel configured — denied by default")
+
+    # Serialize asks: only one 🔐 outstanding at a time across parallel tool
+    # calls, so a single 允许 answers exactly one ask instead of all of them.
+    # A blanket grant landing while we wait lets us skip asking entirely.
+    outcome = acquire_ask_lock(timeout_s * 2, session_id)
+    if outcome == "granted":
+        decide(True, "owner granted the whole session")
+    if outcome == "timeout":
+        decide(False, "approval queue congested — denied")
+    atexit.register(release_ask_lock)  # decide() exits via sys.exit; release either way
 
     # Snapshot BEFORE asking, so old 允许/拒绝 messages can't leak in.
     baseline = {m.get("message_id") for m in recent_messages(trigger)}
