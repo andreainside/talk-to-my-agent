@@ -99,6 +99,20 @@ def format_lines(messages):
     return lines
 
 
+def thread_of(message_id):
+    """The thread a message lives in. Topic-mode groups put every discussion in
+    one, and a summon there means the thread IS the context."""
+    envelope = lark("im", "+messages-mget", "--as", "user", "--message-ids", message_id)
+    messages = (envelope.get("data") or {}).get("messages") or []
+    return (messages[0].get("thread_id") if messages else None) or None
+
+
+def fetch_thread(thread_id, limit=50):
+    envelope = lark("im", "+threads-messages-list", "--thread", thread_id,
+                    "--order", "desc", "--page-size", str(limit))
+    return format_lines((envelope.get("data") or {}).get("messages") or [])
+
+
 def chat_name(state, chat_id):
     names = state.setdefault("chat_names", {})
     if chat_id not in names:
@@ -500,8 +514,15 @@ def compose_message(state, agent, event, request, free):
     lines = context_since_watermark(agent.cfg, state, event["chat_id"])
     who = sender_name(state, event["chat_id"], event.get("sender_id") or "")
     parts = []
+    thread_id = event.get("thread_id") or thread_of(event["message_id"])
+    if thread_id:
+        thread_lines = fetch_thread(thread_id)
+        if thread_lines:
+            parts.append(
+                "--- the thread you were summoned into (this is the conversation "
+                "being discussed; oldest first) ---\n" + "\n".join(thread_lines))
     if lines:
-        parts.append("--- new messages in the group since you last looked ---\n" + "\n".join(lines))
+        parts.append("--- other new messages in the group since you last looked ---\n" + "\n".join(lines))
     peer_note = ""
     if event.get("sender_is_bot"):
         peer_note = (

@@ -67,6 +67,13 @@ one-line pointer here. Shared team-wide material lives in `../shared/` — I can
 read my colleagues' homes too (each group has its own agent), but I only write
 in mine.
 
+## Scratch files
+
+My own home is my desk. Temporary dumps, intermediate JSON, notes-in-progress:
+they go in `scratch/` under my home, never `/tmp` — that's shared with every
+process on this machine, so reading from it needs approval (rightly) and
+writing there leaves litter nobody owns.
+
 ## I can fix how I work
 
 I'm run by an open-source bridge, and I can read its source and my own settings
