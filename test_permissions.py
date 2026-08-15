@@ -52,6 +52,11 @@ CASES = [
     ("相对路径写(cwd 在家里)", bash("echo hi > draft.md"), "allow"),
     ("丢弃报错的纯搜索", bash(f'cd {REAL_REPO} && grep -rln "Composer(" --include="*.swift" Sources 2>/dev/null'), "allow"),
     ("静默 ls 加管道", bash("ls docs/ 2>/dev/null | head -5"), "allow"),
+    # chat posts: paths and verbs in the message TEXT are prose, not actions
+    ("回帖文本提到受限路径", bash('lark-cli im +messages-reply --as bot --message-id om_x --markdown "接手命令: \\`cd /Users/x/repo && claude --resume abc\\` 交接文档在 ~/.other-place/handoff.md"'), "allow"),
+    ("回帖文本提到 git push", bash('lark-cli im +messages-reply --as bot --message-id om_x --text "记得之后 git push 一下"'), "allow"),
+    ("回帖藏命令替换 要批", bash('lark-cli im +messages-reply --as bot --message-id om_x --text "$(rm -rf /Users/x/Documents)"'), "deny"),
+    ("回帖串联第二条命令 要批", bash('lark-cli im +messages-reply --as bot --message-id om_x --text "hi" && rm -rf /Users/x/Documents'), "deny"),
 
     # --- must still be gated ---
     ("改真实工作树", {"tool_name": "Write", "tool_input": {"file_path": f"{REAL_REPO}/src/main.rs", "content": "x"}}, "deny"),

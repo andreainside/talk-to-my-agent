@@ -80,6 +80,25 @@ OUTWARD = re.compile(
 # `grep ... 2>/dev/null` doesn't read as "wants to modify things".
 DEVNULL_SINKS = re.compile(r"(?:&|\d)?>{1,2}\s*/dev/null|\d>&\d")
 
+# The agent's sanctioned voice: a single plain invocation of the chat reply/send
+# command. Paths (and words like "push") inside the message TEXT are prose, not
+# actions — but only when nothing in the command actually executes: no command
+# substitution, no unescaped backticks, no chaining outside the quoted text.
+CHAT_POST = re.compile(r"^\s*(?:\w+=\S+\s+)*lark-cli\s+im\s+\+messages-(?:reply|send)\b")
+QUOTED_SPAN = re.compile(r"\"[^\"]*\"|'[^']*'")
+
+
+def is_plain_chat_post(command):
+    if not CHAT_POST.match(command):
+        return False
+    if re.search(r"(?<!\\)`|\$\(|<\(", command):
+        return False  # these execute even inside double quotes
+    remainder = QUOTED_SPAN.sub("''", command)
+    if re.search(r"[;&|<>]", remainder):
+        return False  # a second command is riding along
+    return True
+
+
 # A path only counts when the / or ~ starts a token — otherwise `target/debug`
 # would read as the absolute path `/debug` and gate an ordinary build cleanup.
 PATH_TOKEN = re.compile(r"""(?:^|[\s'"=:(,;&|<>])((?:~|/)[\w./@%+:=-]*)""")
@@ -306,6 +325,11 @@ def main():
     write_zone, read_zone = zones()
 
     command = str(tool_input.get("command") or "") if tool == "Bash" else ""
+
+    # 0. Speaking in the chat is the agent's job — a verified-plain reply/send
+    # command only posts a message; paths and verbs in its text are words.
+    if command and is_plain_chat_post(command):
+        decide(True, "posting a chat message")
 
     # 1. Outward / irreversible: always ask, blanket grants do not cover it.
     if command and OUTWARD.search(command):
