@@ -545,7 +545,8 @@ def handle_command(cfg, state, agents, event):
                 else:
                     doing = "idle"
                 alive = "up" if (agent.proc and agent.proc.poll() is None) else "down"
-                rows.append(f"· {agent.name} [{alive}] {doing} — ${agent.cost:.2f}")
+                rows.append(f"· {agent.name} [{alive}] {doing} — ${agent.cost:.2f}\n"
+                        f"  session: {(agent.session_id if agent.backend == 'claude' else agent.thread_id) or '-'}")
             model = prefs.get("model") or (cfg.get("executor") or {}).get("model") or "(default)"
             rows.append(f"model: {model} · ack: {prefs.get('ack_emoji') or cfg.get('ack_emoji', 'THUMBSUP')}")
             answer = "\n".join(rows)
