@@ -206,7 +206,13 @@ def ensure_home(state, chat_id, template="CLAUDE.md"):
     source = HOME_TEMPLATE / "CLAUDE.md"
     if not notes.exists() and source.exists():
         notes.write_text(source.read_text().replace("{{CHAT_NAME}}", name))
-    (HOMES_DIR / "shared").mkdir(parents=True, exist_ok=True)
+    shared = HOMES_DIR / "shared"
+    shared.mkdir(parents=True, exist_ok=True)
+    team_file = shared / "TEAM.md"
+    if not team_file.exists():
+        seed = HOME_TEMPLATE / "TEAM.md"
+        if seed.exists():
+            team_file.write_text(seed.read_text())
     return home
 
 
@@ -285,7 +291,8 @@ def zone_paths(cfg, home):
         return seen
 
     scratch = [f"/private/tmp/claude-{os.getuid()}", f"/tmp/claude-{os.getuid()}"]
-    write_zone = real([home, cfg["workdir"]] + scratch + (cfg.get("allowed_write_roots") or []))
+    write_zone = real([home, HOMES_DIR / "shared", cfg["workdir"]] + scratch +
+                      (cfg.get("allowed_write_roots") or []))
     # An agent can read its own source and its own settings file — that's what
     # lets it explain its behaviour and help its owner reconfigure it. The
     # settings file is named exactly; the rest of the state dir (which holds the
