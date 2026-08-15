@@ -137,9 +137,15 @@ def summon_context():
     long-lived, so the bridge writes the current summon to a file per chat."""
     trigger = os.environ.get("TTMA_TRIGGER_MSG_ID", "")
     chat_id = os.environ.get("TTMA_CHAT_ID", "")
-    summons = sorted((STATE_DIR / "summons").glob("*.json"),
-                     key=lambda p: p.stat().st_mtime, reverse=True)
+    if chat_id:
+        # each agent knows its own group — never borrow another group's summon
+        summons = [STATE_DIR / "summons" / f"{chat_id}.json"]
+    else:
+        summons = sorted((STATE_DIR / "summons").glob("*.json"),
+                         key=lambda p: p.stat().st_mtime, reverse=True)
     for path in summons:
+        if not path.exists():
+            continue
         try:
             data = json.loads(path.read_text())
         except Exception:  # noqa: BLE001

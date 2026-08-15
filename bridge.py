@@ -228,11 +228,12 @@ def zone_paths(cfg, home):
     return write_zone, read_zone
 
 
-def agent_env(cfg, home):
+def agent_env(cfg, home, chat_id=""):
     write_zone, read_zone = zone_paths(cfg, home)
     return executor_env(cfg, {
         "TTMA_WRITE_ZONE": ":".join(write_zone),
         "TTMA_READ_ZONE": ":".join(read_zone),
+        "TTMA_CHAT_ID": chat_id,
         "TTMA_OWNER_OPEN_ID": cfg.get("owner_open_id", ""),
         "TTMA_REPLY_STYLE": cfg.get("reply_style", "thread"),
         "TTMA_APPROVAL_TIMEOUT": str((cfg.get("approvals") or {}).get("timeout_seconds", 300)),
@@ -249,7 +250,7 @@ def make_agent(cfg, state, chat_id):
     name = chat_name(state, chat_id)
     home = ensure_home(state, chat_id, template="AGENTS.md")
     write_zone, _ = zone_paths(cfg, home)
-    cfg = {**cfg, "_write_zone": write_zone, "_agent_env": agent_env(cfg, home)}
+    cfg = {**cfg, "_write_zone": write_zone, "_agent_env": agent_env(cfg, home, chat_id)}
     return CodexAgent(
         cfg, state, chat_id, name, home,
         gate=lambda tool, tool_input: policy_gate(cfg, home, chat_id, tool, tool_input),
@@ -308,8 +309,7 @@ def policy_gate(cfg, home, chat_id, tool_name, tool_input):
     """
     payload = {"tool_name": tool_name, "tool_input": tool_input,
                "session_id": (load_state().get("sessions") or {}).get(chat_id, "")}
-    env = dict(agent_env(cfg, home))
-    env["TTMA_CHAT_ID"] = chat_id
+    env = dict(agent_env(cfg, home, chat_id))
     try:
         proc = subprocess.run(
             ["python3", str(HOOK_PATH)], input=json.dumps(payload),
@@ -361,7 +361,7 @@ class Agent:
             cmd += ["--resume", self.session_id]
         self.proc = subprocess.Popen(
             cmd, cwd=self.home, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, bufsize=1, env=agent_env(self.cfg, self.home),
+            stderr=subprocess.DEVNULL, text=True, bufsize=1, env=agent_env(self.cfg, self.home, self.chat_id),
         )
         threading.Thread(target=self._read_loop, args=(self.proc,), daemon=True).start()
         print(f"[bridge] agent '{self.name}' started"
