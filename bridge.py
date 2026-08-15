@@ -87,15 +87,23 @@ def fetch_messages(chat_id, limit=50):
     return (envelope.get("data") or {}).get("messages") or []
 
 
-def format_lines(messages):
-    lines = []
+NOISE_PREFIXES = ("🔐", "⏳")
+
+
+def format_lines(messages, skip_ids=()):
+    """Transcript lines, oldest first. Approval cards are plumbing, not
+    conversation — re-feeding them every summon costs tokens and teaches the
+    agent nothing."""
+    lines, seen = [], set(skip_ids)
     for msg in reversed(list(messages)):
-        if msg.get("deleted"):
+        if msg.get("deleted") or msg.get("message_id") in seen:
+            continue
+        seen.add(msg.get("message_id"))
+        content = str(msg.get("content") or "").strip()
+        if not content or content.lstrip().startswith(NOISE_PREFIXES):
             continue
         sender = (msg.get("sender") or {}).get("name") or "?"
-        content = str(msg.get("content") or "").strip()
-        if content:
-            lines.append(f"[{msg.get('create_time', '')}] {sender}: {content}")
+        lines.append(f"[{msg.get('create_time', '')}] {sender}: {content}")
     return lines
 
 
@@ -107,10 +115,11 @@ def thread_of(message_id):
     return (messages[0].get("thread_id") if messages else None) or None
 
 
-def fetch_thread(thread_id, limit=50):
+def fetch_thread(thread_id, limit=40):
     envelope = lark("im", "+threads-messages-list", "--thread", thread_id,
                     "--order", "desc", "--page-size", str(limit))
-    return format_lines((envelope.get("data") or {}).get("messages") or [])
+    messages = (envelope.get("data") or {}).get("messages") or []
+    return format_lines(messages), {m.get("message_id") for m in messages}
 
 
 def chat_name(state, chat_id):
@@ -164,6 +173,23 @@ def save_state(state):
 def safe_dir_name(name):
     cleaned = re.sub(r"[^\w一-鿿-]+", "-", name).strip("-")
     return cleaned or "group"
+
+
+def prune_downloads(cfg):
+    """Chat images accumulate fast — one group produced 19MB in a day, of which
+    the agent actually needed two. Keep the recent ones, drop the rest; they can
+    always be re-fetched from Feishu."""
+    days = int(cfg.get("resource_retention_days", 7))
+    if days <= 0:
+        return
+    cutoff = time.time() - days * 86400
+    for resources in HOMES_DIR.glob("*/lark-im-resources"):
+        for item in resources.iterdir():
+            try:
+                if item.is_file() and item.stat().st_mtime < cutoff:
+                    item.unlink()
+            except OSError:
+                pass
 
 
 def ensure_home(state, chat_id, template="CLAUDE.md"):
@@ -516,7 +542,8 @@ def compose_message(state, agent, event, request, free):
     parts = []
     thread_id = event.get("thread_id") or thread_of(event["message_id"])
     if thread_id:
-        thread_lines = fetch_thread(thread_id)
+        thread_lines, thread_ids = fetch_thread(thread_id)
+        lines = [l for l in lines if l not in thread_lines]  # no double-feeding
         if thread_lines:
             parts.append(
                 "--- the thread you were summoned into (this is the conversation "
@@ -729,6 +756,7 @@ def main():
     if approvals_enabled(cfg):
         cfg["_claude_settings_path"] = write_claude_settings(cfg)
     HOMES_DIR.mkdir(parents=True, exist_ok=True)
+    prune_downloads(cfg)
     consume_forever(cfg)
 
 

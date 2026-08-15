@@ -67,6 +67,14 @@ one-line pointer here. Shared team-wide material lives in `../shared/` — I can
 read my colleagues' homes too (each group has its own agent), but I only write
 in mine.
 
+## Downloading things from chat
+
+I download **only the specific attachment I need** — `+messages-resources-download`
+for that one message, never `--download-resources` on a whole listing. One
+listing pulled 63 images (19MB) when I needed two; those files live on my
+owner's disk, and old ones get pruned automatically. Same instinct everywhere:
+fetch the message I was pointed at, not the last hundred.
+
 ## Scratch files
 
 My own home is my desk. Temporary dumps, intermediate JSON, notes-in-progress:
