@@ -50,6 +50,8 @@ CASES = [
     ("读同事 agent 的笔记", {"tool_name": "Read", "tool_input": {"file_path": f"{HOMES}/another-group/CLAUDE.md"}}, "allow"),
     ("搜索/其他工具", {"tool_name": "WebSearch", "tool_input": {"query": "x"}}, "allow"),
     ("相对路径写(cwd 在家里)", bash("echo hi > draft.md"), "allow"),
+    ("丢弃报错的纯搜索", bash(f'cd {REAL_REPO} && grep -rln "Composer(" --include="*.swift" Sources 2>/dev/null'), "allow"),
+    ("静默 ls 加管道", bash("ls docs/ 2>/dev/null | head -5"), "allow"),
 
     # --- must still be gated ---
     ("改真实工作树", {"tool_name": "Write", "tool_input": {"file_path": f"{REAL_REPO}/src/main.rs", "content": "x"}}, "deny"),

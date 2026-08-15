@@ -75,6 +75,11 @@ OUTWARD = re.compile(
     re.IGNORECASE,
 )
 
+# Redirects that cannot create or truncate a file: /dev/null sinks and
+# fd-to-fd merges (2>&1). Cleaned away before the destructive check, so
+# `grep ... 2>/dev/null` doesn't read as "wants to modify things".
+DEVNULL_SINKS = re.compile(r"(?:&|\d)?>{1,2}\s*/dev/null|\d>&\d")
+
 # A path only counts when the / or ~ starts a token — otherwise `target/debug`
 # would read as the absolute path `/debug` and gate an ordinary build cleanup.
 PATH_TOKEN = re.compile(r"""(?:^|[\s'"=:(,;&|<>])((?:~|/)[\w./@%+:=-]*)""")
@@ -332,7 +337,7 @@ def main():
         if outside_read:
             ask_owner(tool, tool_input,
                       f"要碰工作区外的 {outside_read[0]}", session_id)
-        if DESTRUCTIVE.search(command):
+        if DESTRUCTIVE.search(DEVNULL_SINKS.sub(" ", command)):
             outside_write = [p for p in paths if not under(p, write_zone)]
             if outside_write:
                 ask_owner(tool, tool_input,
