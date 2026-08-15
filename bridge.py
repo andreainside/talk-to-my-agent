@@ -122,6 +122,16 @@ def sender_name(state, chat_id, open_id):
 _state_lock = threading.Lock()
 
 
+def clear_grant(session_id):
+    """Blanket grants are per task. The session lives on for months; the ✔
+    must not."""
+    if session_id:
+        try:
+            (STATE_DIR / "grants" / session_id).unlink()
+        except OSError:
+            pass
+
+
 def load_state():
     try:
         return json.loads(STATE_PATH.read_text())
@@ -223,7 +233,10 @@ def zone_paths(cfg, home):
     # settings file is named exactly; the rest of the state dir (which holds the
     # auth token) stays out of reach.
     self_knowledge = [PROJECT_DIR, cfg.get("_config_path") or (STATE_DIR / "config.json")]
-    read_zone = real(write_zone + [HOMES_DIR] + self_knowledge +
+    # ...and the engine's own skill libraries: an agent must read them to use
+    # its skills — gating its toolbox behind approval helps nobody.
+    skills = [Path.home() / ".claude" / "skills", Path.home() / ".agents" / "skills"]
+    read_zone = real(write_zone + [HOMES_DIR] + self_knowledge + skills +
                      (cfg.get("allowed_read_roots") or []))
     return write_zone, read_zone
 
@@ -402,6 +415,7 @@ class Agent:
                 save_state(self.state)
             elif kind == "result":
                 self.busy_since = None
+                clear_grant(self.session_id)  # ✔ means THIS task — not the agent's whole life
                 cost = event.get("total_cost_usd")
                 if isinstance(cost, (int, float)):
                     self.cost += cost

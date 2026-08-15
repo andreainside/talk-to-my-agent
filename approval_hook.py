@@ -150,8 +150,10 @@ def summon_context():
             data = json.loads(path.read_text())
         except Exception:  # noqa: BLE001
             continue
-        return data.get("TTMA_TRIGGER_MSG_ID", trigger), data.get("TTMA_CHAT_ID", chat_id)
-    return trigger, chat_id
+        return (data.get("TTMA_TRIGGER_MSG_ID", trigger),
+                data.get("TTMA_CHAT_ID", chat_id),
+                data.get("TTMA_GRANT_ALL") == "1")
+    return trigger, chat_id, False
 
 
 def post(trigger_id, text):
@@ -244,7 +246,7 @@ def grant_session(session_id):
 
 
 def ask_owner(tool, tool_input, why, session_id, blanket_ok=True):
-    trigger, chat_id = summon_context()
+    trigger, chat_id, _ = summon_context()
     owner = os.environ.get("TTMA_OWNER_OPEN_ID")
     timeout_s = int(os.environ.get("TTMA_APPROVAL_TIMEOUT", "300"))
     if not trigger or not owner:
@@ -305,7 +307,9 @@ def main():
         ask_owner(tool, tool_input, "会推送到外部或不可撤销", session_id, blanket_ok=False)
 
     # 2. Blanket grants cover everything else.
-    if os.environ.get("TTMA_GRANT_ALL") == "1":
+    if os.environ.get("TTMA_GRANT_ALL") == "1" or summon_context()[2]:
+        # +free rides the summon file — the long-lived agent's env can't carry
+        # per-summon facts (env is fixed at process start)
         decide(True, "owner pre-granted this task (+free)")
     if session_id and (GRANTS_DIR / session_id).exists():
         decide(True, "owner granted the whole task")

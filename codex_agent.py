@@ -177,6 +177,11 @@ class CodexAgent:
         elif method == "turn/completed":
             self.turn_id = None
             self.busy_since = None
+            grants = Path(os.environ.get("TTMA_HOME", Path.home() / ".talk-to-my-agent")) / "grants"
+            try:
+                (grants / (self.thread_id or "")).unlink()  # ✔ is per task, not per lifetime
+            except OSError:
+                pass
             usage = params.get("usage") or {}
             cost = usage.get("totalCostUsd") or usage.get("total_cost_usd")
             if isinstance(cost, (int, float)):
