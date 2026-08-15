@@ -185,6 +185,24 @@ def executor_env(cfg, extra=None):
     return merged
 
 
+DEFAULT_WORKDIR_SYNC = "git fetch -q origin && git reset -q --hard origin/main"
+
+
+def sync_workdir(cfg):
+    """The agent diagnoses code against GitHub's latest, not whatever the
+    checkout happened to be. Its workdir is disposable by contract, so it gets
+    hard-reset to origin/main when a task starts — durable things live in the
+    agent's home, never here."""
+    command = cfg.get("workdir_sync_command", DEFAULT_WORKDIR_SYNC)
+    if not command:
+        return
+    try:
+        subprocess.run(command, shell=True, cwd=Path(cfg["workdir"]).expanduser(),
+                       capture_output=True, timeout=120, env=executor_env(cfg))
+    except Exception:  # noqa: BLE001 - stale beats stuck
+        pass
+
+
 def approvals_enabled(cfg):
     return bool((cfg.get("approvals") or {}).get("enabled"))
 
@@ -280,21 +298,34 @@ def workspace_briefing(cfg, home):
     """
     write_zone, read_zone = zone_paths(cfg, home)
     read_only = [p for p in read_zone if p not in write_zone]
+    workdir = os.path.realpath(os.path.expanduser(str(cfg["workdir"])))
     lines = [
         "Your workspace on this machine — these paths are already yours, do not go looking for others:",
         "",
-        "Free to read, write and run commands in:",
+        f"YOUR repository (code work happens here): {workdir}",
+        "  It is synced to origin/main (= GitHub latest) whenever a task starts, so what you",
+        "  read here IS the current code. It is disposable: keep nothing precious in it —",
+        "  anything worth keeping goes in your home.",
+        "",
+        "Also free to read, write and run commands in:",
     ]
-    lines += [f"  {p}" for p in write_zone]
+    lines += [f"  {p}" for p in write_zone if p != workdir]
     if read_only:
-        lines += ["", "Readable, but changing anything here asks the owner first:"]
+        lines += [
+            "",
+            "Readable, but changing anything here asks the owner first — note that other",
+            "checkouts of the same project under these paths are the owner's LIVE working",
+            "trees: possibly behind GitHub, possibly mid-edit. Never diagnose code from",
+            "them; use YOUR repository above. Read them only when the owner explicitly",
+            "asks about uncommitted work.",
+        ]
         lines += [f"  {p}" for p in read_only]
     lines += [
         "",
         "Anything outside these paths asks the owner, and so do outward or irreversible "
         "actions (git push, opening or merging PRs, publishing, deploying) wherever they run.",
-        "Searching the wider filesystem for a project is not worth an approval prompt — the "
-        "repository you work with is listed above.",
+        "Recent merge history is available via `git log` in your repository and `gh pr list` "
+        "(read-only gh commands are free).",
     ]
     return "\n".join(lines)
 
@@ -592,6 +623,8 @@ def handle_mention(cfg, state, agents, event):
     if agent is None:
         agent = agents[chat_id] = make_agent(cfg, state, chat_id)
     agent.last_request = request
+    if not any(a.busy_since for a in agents.values()):
+        sync_workdir(cfg)  # all agents share the workdir — only reset it when idle
     if agent.busy_since is None:
         agent.busy_since = time.time()
 

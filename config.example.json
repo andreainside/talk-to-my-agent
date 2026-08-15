@@ -15,5 +15,6 @@
   "allowed_read_roots": [],
   "model": "",
   "max_bot_chain": 3,
-  "allowed_write_roots": []
+  "allowed_write_roots": [],
+  "workdir_sync_command": "git fetch -q origin && git reset -q --hard origin/main"
 }

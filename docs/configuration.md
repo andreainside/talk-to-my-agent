@@ -73,6 +73,8 @@ fine. `@bot +free <request>` pre-grants a whole task up front — owner only.
   "bot_open_id":   "ou_...",      // your bot   (lark-cli auth status → identities.bot.openId)
   "owner_open_id": "ou_...",      // you        (→ identities.user.openId)
   "workdir": "~/work/agent-tree", // where agents run; a checkout dedicated to them
+  "workdir_sync_command": "git fetch -q origin && git reset -q --hard origin/main",
+                                   // keeps the workdir == GitHub latest at task start; "" disables
   "allowed_read_roots": [],       // extra dirs they may read freely (your repos)
   "allowed_write_roots": [],      // extra dirs they may change freely (rare)
   "context_messages": 20,          // how much backlog a brand-new agent reads
@@ -87,8 +89,13 @@ fine. `@bot +free <request>` pre-grants a whole task up front — owner only.
 ```
 
 `workdir` should be a checkout you don't personally edit — agents write there
-without asking. Your real working tree belongs in `allowed_read_roots` instead:
-readable, but changes ask.
+without asking, and `workdir_sync_command` (default: fetch + hard-reset to
+origin/main) runs whenever a task starts while no agent is busy, so agents
+always diagnose against GitHub's latest, never a stale checkout. Set it to ""
+for a non-git workdir. Your real working tree belongs in `allowed_read_roots`
+instead: readable, but changes ask — and the workspace briefing tells agents
+it may be behind or mid-edit, so code questions are answered from their own
+synced repository.
 
 ## 5. Backends: Claude Code or Codex
 
