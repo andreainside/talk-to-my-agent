@@ -156,6 +156,32 @@ def decide(allow, reason):
     sys.exit(0)
 
 
+OUTBOUND_TARGET = re.compile(r"--(?:message-id|chat-id)\s+((?:om|oc)_[0-9a-zA-Z]+)")
+
+
+def record_outbound(command):
+    """Who spoke where. A topic follows the agent that opened it: when this
+    agent posts a reply (into a thread) or a message (into a chat) — anywhere,
+    including another group — the bridge notes it, so later mentions on that
+    thread route back here instead of to whichever agent lives in that room.
+    Zero agent involvement: it just talks; the courier keeps the ledger."""
+    my_chat = os.environ.get("TTMA_CHAT_ID", "")
+    match = OUTBOUND_TARGET.search(command)
+    if not my_chat or not match:
+        return
+    target = match.group(1)
+    ledger = STATE_DIR / "outbound.jsonl"
+    try:
+        with ledger.open("a") as f:
+            f.write(json.dumps({
+                "agent_chat": my_chat,
+                "target": target,          # om_ = replied to this message; oc_ = posted in this chat
+                "at": time.time(),
+            }) + "\n")
+    except OSError:
+        pass
+
+
 def summon_context():
     """Which chat message the agent is currently answering. The agent process is
     long-lived, so the bridge writes the current summon to a file per chat."""
@@ -329,6 +355,7 @@ def main():
     # 0. Speaking in the chat is the agent's job — a verified-plain reply/send
     # command only posts a message; paths and verbs in its text are words.
     if command and is_plain_chat_post(command):
+        record_outbound(command)
         decide(True, "posting a chat message")
 
     # 1. Outward / irreversible: always ask, blanket grants do not cover it.
