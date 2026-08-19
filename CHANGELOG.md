@@ -4,6 +4,16 @@ Each release gets one section. The bridge reads the newest section and DMs it
 to the owner verbatim — so write for the person who'll read it in a chat, not
 for a compiler. Mark config changes with ⚠.
 
+## v0.6.2 — 2026-08-19
+
+- **Fix: agents still died at launch on v0.6.1.** Two flags were passed that the
+  CLI refuses together (`--append-system-prompt` and its `-file` form), so every
+  agent exited in 0.2s while the bridge reported a successful start. Memory and
+  the workspace briefing now travel as one prompt.
+- **Agent stderr is kept** (`~/.talk-to-my-agent/agent-errors.log`) and a launch
+  that dies within seconds is logged as a failure. Discarding stderr is why two
+  releases in a row a dead agent looked like a silent one.
+
 ## v0.6.1 — 2026-08-19
 
 - **Fix: agents died at startup after v0.6.0.** Moving their working directory

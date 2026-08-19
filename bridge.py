@@ -597,7 +597,15 @@ class Agent:
             "--verbose",
         ]
         cmd += self.cfg.get("claude_args", [])
-        cmd += ["--append-system-prompt", workspace_briefing(self.cfg, self.home)]
+        # One --append-system-prompt only: the CLI refuses to accept both the
+        # string and the -file form. The agent's own notes ride along with the
+        # workspace briefing — --add-dir grants access but does not auto-load a
+        # dir's CLAUDE.md, so this is what actually gives it its memory.
+        preamble = workspace_briefing(self.cfg, self.home)
+        notes = self.home / "CLAUDE.md"
+        if notes.exists():
+            preamble = notes.read_text() + "\n\n---\n\n" + preamble
+        cmd += ["--append-system-prompt", preamble]
         if approvals_enabled(self.cfg):
             cmd += ["--settings", str(self.cfg["_claude_settings_path"])]
         model = normalize_model((self.state.get("prefs") or {}).get("model") or
@@ -616,22 +624,30 @@ class Agent:
         # Take the repo's CLAUDE.md/skills, not its hooks; ours arrive via
         # --settings above.
         cmd += ["--setting-sources", "user", "--add-dir", str(self.home)]
-        notes = self.home / "CLAUDE.md"
-        if notes.exists():
-            # --add-dir grants access but does not auto-load the dir's CLAUDE.md
-            # (verified live); load the agent's own notes explicitly. Same shape
-            # as the Codex backend's developerInstructions — both engines get
-            # "repo rules from cwd + own memory from home".
-            cmd += ["--append-system-prompt-file", str(notes)]
         workdir = Path(self.cfg["workdir"]).expanduser()
+        # Keep stderr: a silent DEVNULL is exactly why two startup failures
+        # looked like "the agent is ignoring you" instead of "the agent died".
+        errlog = (STATE_DIR / "agent-errors.log").open("a")
+        errlog.write(f"\n===== {self.name} @ {time.strftime('%H:%M:%S')} =====\n")
+        errlog.flush()
         self.proc = subprocess.Popen(
             cmd, cwd=workdir if workdir.is_dir() else self.home,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, bufsize=1, env=agent_env(self.cfg, self.home, self.chat_id),
+            stderr=errlog, text=True, bufsize=1, env=agent_env(self.cfg, self.home, self.chat_id),
         )
+        threading.Thread(target=self._watch_death, args=(self.proc,), daemon=True).start()
         threading.Thread(target=self._read_loop, args=(self.proc,), daemon=True).start()
         print(f"[bridge] agent '{self.name}' started"
               f"{' (resumed)' if self.session_id else ' (new hire)'}", flush=True)
+
+    def _watch_death(self, proc):
+        """An agent that dies within seconds of starting is a broken launch, not
+        a finished task — say so where the owner will see it."""
+        started = time.time()
+        code = proc.wait()
+        if time.time() - started < 20 and code != 0:
+            print(f"[bridge] agent '{self.name}' died {round(time.time()-started,1)}s after "
+                  f"launch (exit {code}) — see {STATE_DIR / 'agent-errors.log'}", flush=True)
 
     def ensure_running(self):
         with self.lock:
