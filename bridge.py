@@ -841,17 +841,33 @@ def watch_inboxes(cfg, state, agents):
             print(f"[bridge] inbox watcher: {exc}", flush=True)
 
 
+def _relay_stderr(stream):
+    """lark-cli's diagnostics (ready marker, exit reason, auth errors) into our
+    log — without this, every drop is a guessing game."""
+    for line in stream:
+        line = line.rstrip()
+        if line:
+            print(f"[lark-cli] {line}", flush=True)
+
+
 def consume_forever(cfg):
     state = load_state()
     agents = {}
     seen = set()
     threading.Thread(target=watch_inboxes, args=(cfg, state, agents), daemon=True).start()
     while True:
+        # lark-cli treats stdin EOF as "shut down gracefully" on an unbounded
+        # consume. A PIPE we never write to is one GC'd handle away from EOF —
+        # which showed up as an endless listen/drop/reconnect loop. Hand it a
+        # source that never EOFs, and let its stderr reach our log so the next
+        # drop says why instead of being a mystery.
+        keepalive = subprocess.Popen(["tail", "-f", "/dev/null"], stdout=subprocess.PIPE)
         proc = subprocess.Popen(
             ["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            stdin=keepalive.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, env=ENV,
         )
+        threading.Thread(target=_relay_stderr, args=(proc.stderr,), daemon=True).start()
         print("[bridge] listening", flush=True)
         try:
             for line in proc.stdout:
@@ -873,6 +889,7 @@ def consume_forever(cfg):
                 ).start()
         finally:
             proc.kill()
+            keepalive.kill()
         print("[bridge] event stream dropped; reconnecting in 5s", flush=True)
         time.sleep(5)
 
