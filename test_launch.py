@@ -82,20 +82,26 @@ def main():
     answers = []
     agent.on_text = answers.append
 
-    sent = agent.send("On one line, no tools: what is this project's build command, "
-                      "and what is the name of the group you sit in?")
+    # The repo's rules are *reachable*, not auto-injected: the engine tells the
+    # agent those files exist and it reads them when relevant. So the probe must
+    # let it read (that IS the capability being tested), while its own memory
+    # rides in the system prompt and needs no tool.
+    sent = agent.send("Two things, one line each: (1) this project's build command "
+                      "— check the project's own instructions; (2) the name of the "
+                      "group you sit in.")
     check("bridge can write to the agent", sent)
 
     for _ in range(60):
         time.sleep(2)
-        if answers:
+        if len(' '.join(answers)) > 40:
             break
     reply_text = " ".join(answers)
     check("agent answers", bool(answers), reply_text[:80] if answers else "no reply in 120s")
-    check("repo rules reached it (cwd)", "PLUMBUS" in reply_text.upper(),
-          "repo CLAUDE.md not loaded" if "PLUMBUS" not in reply_text.upper() else "")
-    check("own memory reached it (home)", "RHOMBUS" in reply_text.upper(),
-          "home notes not loaded" if "RHOMBUS" not in reply_text.upper() else "")
+    check("repo instructions reachable (cwd)", "PLUMBUS" in reply_text.upper(),
+          "the repo's own CLAUDE.md/AGENTS.md is not reachable from the agent's cwd"
+          if "PLUMBUS" not in reply_text.upper() else "")
+    check("own memory in context (home)", "RHOMBUS" in reply_text.upper(),
+          "home notes missing from the system prompt" if "RHOMBUS" not in reply_text.upper() else "")
     check("still alive after a task", agent.proc.poll() is None)
 
     agent.restart()

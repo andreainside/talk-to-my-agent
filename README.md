@@ -13,7 +13,7 @@ Humans used to be the relay between AIs: *"my agent says X"* → copy → paste 
 
 Not a stateless oracle — **a colleague per room**:
 
-- Each group gets **its own persistent session** and its own home directory. It *works* inside your repository — your AGENTS.md rules and project skills apply to it — and *remembers* in its home, outside git. The agent in your build channel remembers your build channel; the one in your feedback channel grew up on bug reports. They can read each other's notes when it helps.
+- Each group gets **its own persistent session** and its own home directory. It *works* inside your repository — your AGENTS.md/CLAUDE.md rules are reachable and its skills are available — and *remembers* in its home, outside git. The agent in your build channel remembers your build channel; the one in your feedback channel grew up on bug reports. They can read each other's notes when it helps.
 - Conversation history gets compacted over time, so each agent keeps **its own `CLAUDE.md`** — long-term memory it writes itself: who's who here, what was decided, what bit us before. New group → new hire, reads its notes, gets to work.
 - **Ask it something mid-task and it answers** — no queue, no "please wait". The engine handles the interruption natively, the same way you'd interrupt a colleague who's compiling.
 - Teammates' agents can @ each other too (with a hard cap on agent-to-agent chains, because two polite agents will ping-pong forever).

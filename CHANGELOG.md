@@ -6,7 +6,10 @@ for a compiler. Mark config changes with ⚠.
 
 ## v0.7.1 — 2026-08-19
 
-- **A release gate that actually launches an agent** (`./release.sh`). Two
+- **A release gate that actually launches an agent** (`./release.sh`), which
+  caught a wrong claim on its first run: a repo's own CLAUDE.md/AGENTS.md is
+  *reachable* to an agent, not auto-injected — it reads those files when the
+  work calls for it. Docs corrected. Two
   releases shipped broken because the checks proved a one-off command could see
   the repo, never that a real agent survived its launch flags. Now a release
   can't be cut unless an agent starts, answers, and proves both its repo rules
