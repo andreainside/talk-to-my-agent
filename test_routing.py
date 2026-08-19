@@ -19,9 +19,9 @@ def fake_lark(*args, **kw):
     if "+threads-messages-list" in a:
         return {"ok": True, "data": {"messages": [
             {"message_id": ROOT, "create_time": time.strftime("%Y-%m-%d %H:%M"),
-             "sender": {"name": "Andrea M.O.Bot", "sender_type": "app"}, "content": "代张之湄转达…"},
+             "sender": {"name": "Andrea M.O.Bot", "sender_type": "app"}, "content": "代the owner转达…"},
             {"message_id": HUMAN_MSG, "create_time": time.strftime("%Y-%m-%d %H:%M"),
-             "sender": {"name": "小涂", "sender_type": "user"}, "content": "@Andrea M.O.Bot 我也在写这个代码，到底谁来写"},
+             "sender": {"name": "Xiao T", "sender_type": "user"}, "content": "@Andrea M.O.Bot 我也在写这个代码，到底谁来写"},
         ]}}
     if "+messages-mget" in a:
         return {"ok": True, "data": {"messages": [{"message_id": HUMAN_MSG, "thread_id": THREAD}]}}
@@ -58,9 +58,9 @@ agents = {}
 ledger = Path(os.environ["TTMA_HOME"]) / "outbound.jsonl"
 ledger.write_text(json.dumps({"agent_chat": CC, "target": SHIP, "at": time.time()}) + "\n")
 
-print("=== 场景 1: 小涂在 CC 桥员工开的 Ship it! thread 里 @ ===")
+print("=== 场景 1: Xiao T在 CC 桥员工开的 Ship it! thread 里 @ ===")
 bridge.handle_mention(cfg, state, agents, {
-    "message_id": HUMAN_MSG, "chat_id": SHIP, "sender_id": "ou_xiaotu", "sender_type": "user",
+    "message_id": HUMAN_MSG, "chat_id": SHIP, "sender_id": "ou_teammate", "sender_type": "user",
     "content": "@Andrea M.O.Bot 我也在写这个代码，到底谁来写",
     "mentions": [{"id": "ou_bot", "name": "Andrea M.O.Bot"}], "thread_id": THREAD,
 })
@@ -75,7 +75,7 @@ summoned.clear()
 bridge.owning_agent_chat = lambda *a, **k: None   # no ledger claim on main flow
 bridge.thread_of = lambda mid: None
 bridge.handle_mention(cfg, state, agents, {
-    "message_id": "om_mainflow", "chat_id": SHIP, "sender_id": "ou_xiaotu", "sender_type": "user",
+    "message_id": "om_mainflow", "chat_id": SHIP, "sender_id": "ou_teammate", "sender_type": "user",
     "content": "@Andrea M.O.Bot 那个 deepseek 的事怎么样了",
     "mentions": [{"id": "ou_bot", "name": "Andrea M.O.Bot"}],
 })
@@ -86,7 +86,7 @@ print("  Ship-it 员工收到 ✓ (它会按手册判断:上下文里的 [bot] �
 cc_inbox = bridge.HOMES_DIR / bridge.safe_dir_name("CC 桥实验") / "inbox"
 cc_inbox.mkdir(parents=True, exist_ok=True)
 (cc_inbox / "h1.json").write_text(json.dumps({
-    "message_id": "om_mainflow", "chat_id": SHIP, "thread_id": None, "sender_id": "ou_xiaotu",
+    "message_id": "om_mainflow", "chat_id": SHIP, "thread_id": None, "sender_id": "ou_teammate",
     "content": "那个 deepseek 的事怎么样了", "from_chat": SHIP,
     "note": "上下文里的 [bot] 转达是 CC 桥同事发的,DeepSeek 这条线是它在跟", "hops": 0}))
 summoned.clear()
@@ -109,7 +109,7 @@ print("  PASS hops≥1 丢弃")
 
 print("\n=== 场景 4: [bot] 标记进上下文 ===")
 lines = bridge.format_lines([  # newest first, like the API returns
-    {"message_id": "b", "create_time": "t2", "sender": {"name": "小涂", "sender_type": "user"}, "content": "收到"},
+    {"message_id": "b", "create_time": "t2", "sender": {"name": "Xiao T", "sender_type": "user"}, "content": "收到"},
     {"message_id": "a", "create_time": "t1", "sender": {"name": "Andrea M.O.Bot", "sender_type": "app"}, "content": "转达一下"},
 ])
 assert "Andrea M.O.Bot [bot]:" in lines[0] and "[bot]" not in lines[1]

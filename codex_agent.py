@@ -87,11 +87,18 @@ class CodexAgent:
         })
         self._notify("initialized")
 
+        workdir = Path(self.cfg["workdir"]).expanduser()
+        notes = self.home / "AGENTS.md"
+        instructions = self.briefing
+        if notes.exists():
+            # Codex loads AGENTS.md from cwd; the agent works in the repo, so its
+            # own notes (kept in its home, outside git) ride in as instructions.
+            instructions = notes.read_text() + "\n\n---\n\n" + self.briefing
         opened = {
-            "cwd": str(self.home),
+            "cwd": str(workdir if workdir.is_dir() else self.home),
             "sandbox": "workspace-write",
             "approvalPolicy": "on-request",
-            "developerInstructions": self.briefing,
+            "developerInstructions": instructions,
         }
         if self.cfg.get("model"):
             opened["model"] = self.cfg["model"]

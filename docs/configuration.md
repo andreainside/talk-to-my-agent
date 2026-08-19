@@ -15,6 +15,8 @@ DM your own bot. Commands are plain text:
 | `emoji SMUG` | the emoji your bot drops when summoned |
 | `emoji that` | react on the bot's last DM message, then send this — it adopts that emoji |
 | `reset <group>` / `reset all` | fresh brain for that group's agent (its notes stay) |
+| `reload` | restart the bridge in place to pick up new code (agents keep memory) |
+| `update` | switch to the newest release and restart |
 | `help` | command list |
 
 Emoji keys are Feishu's fixed reaction keys (`Yes`, `No`, `CheckMark`, `SMUG`,
@@ -117,7 +119,18 @@ Codex's app-server protocol is marked experimental upstream. Pin your CLI
 version, and re-run `python3 test_permissions.py` plus a live summon after
 upgrading it.
 
-## 6. State on disk
+## 6. Staying current
+
+The bridge checks for a newer release once a day (a `git fetch` of its own
+checkout — zero tokens, no agent involved) and on startup. When one exists, it
+DMs you the CHANGELOG entry once. Reply `update` to switch and restart; say
+nothing to stay where you are. Nothing is ever pulled without your word.
+`status` shows which version you run.
+
+If a release adds config keys, the update reply lists the ones you're missing;
+defaults apply until you set them.
+
+## 7. State on disk
 
 `~/.talk-to-my-agent/`
 

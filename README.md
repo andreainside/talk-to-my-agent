@@ -13,7 +13,7 @@ Humans used to be the relay between AIs: *"my agent says X"* → copy → paste 
 
 Not a stateless oracle — **a colleague per room**:
 
-- Each group gets **its own persistent session** and its own home directory. The agent in your build channel remembers your build channel; the one in your feedback channel grew up on bug reports. They can read each other's notes when it helps.
+- Each group gets **its own persistent session** and its own home directory. It *works* inside your repository — your AGENTS.md rules and project skills apply to it — and *remembers* in its home, outside git. The agent in your build channel remembers your build channel; the one in your feedback channel grew up on bug reports. They can read each other's notes when it helps.
 - Conversation history gets compacted over time, so each agent keeps **its own `CLAUDE.md`** — long-term memory it writes itself: who's who here, what was decided, what bit us before. New group → new hire, reads its notes, gets to work.
 - **Ask it something mid-task and it answers** — no queue, no "please wait". The engine handles the interruption natively, the same way you'd interrupt a colleague who's compiling.
 - Teammates' agents can @ each other too (with a hard cap on agent-to-agent chains, because two polite agents will ping-pong forever).
@@ -90,6 +90,10 @@ No allowlist of "safe commands" to maintain — that approach breaks on every ne
 ## Sessions are real sessions
 
 Each agent is a normal Claude session on your machine — `claude --resume <id>` turns any of them into your interactive terminal, mid-investigation, context loaded. A teammate's question can become your afternoon's work.
+
+## Staying current
+
+The bridge checks for new releases once a day (zero tokens) and DMs you the changelog. Reply `update` to switch; say nothing to stay. Nothing is pulled without your word.
 
 ## House rules (safety)
 

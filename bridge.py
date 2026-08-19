@@ -45,6 +45,7 @@ HELP_TEXT = """I'm your agents' control plane. One agent per group; DM me:
   emoji that          adopt the emoji you just reacted on my last message
   reset <group>       fresh brain for one group's agent (or: reset all)
   reload              restart the bridge to pick up new code (agents keep their memory)
+  update              fetch the newest release, switch to it, restart
   help                this text
 In a group: @me [+free] your request"""
 
@@ -310,6 +311,96 @@ def sync_workdir(cfg):
         pass
 
 
+def current_version():
+    """The tag this checkout is on, or short sha if untagged."""
+    try:
+        out = subprocess.run(["git", "describe", "--tags", "--always"], cwd=PROJECT_DIR,
+                             capture_output=True, text=True, timeout=10)
+        return out.stdout.strip() or "unknown"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def latest_release():
+    """Newest vX.Y.Z tag on origin, after a fetch. Pure git — no agent, no tokens."""
+    try:
+        subprocess.run(["git", "fetch", "-q", "--tags", "origin"], cwd=PROJECT_DIR,
+                       capture_output=True, timeout=60)
+        out = subprocess.run(["git", "tag", "-l", "v*", "--sort=-v:refname"], cwd=PROJECT_DIR,
+                             capture_output=True, text=True, timeout=10)
+        tags = [l.strip() for l in out.stdout.splitlines() if l.strip()]
+        return tags[0] if tags else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def changelog_entry(tag):
+    """The CHANGELOG section for one tag — written by a human at release time,
+    forwarded verbatim. The notification never costs a token of inference."""
+    path = PROJECT_DIR / "CHANGELOG.md"
+    if not path.exists():
+        return ""
+    lines, grab = [], False
+    for line in path.read_text().splitlines():
+        if line.startswith("## "):
+            if grab:
+                break
+            grab = tag in line
+            continue
+        if grab:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def check_for_update(cfg, state):
+    """Once at start and once a day: is there a newer tag than the one we run?
+    Tell the owner ONCE per version, by DM, with the CHANGELOG text. They
+    decide; nothing is pulled without their `update`."""
+    latest = latest_release()
+    running = current_version()
+    if not latest or latest == running or state.get("update_notified") == latest:
+        return
+    notes = changelog_entry(latest) or "(no changelog entry)"
+    text = (f"🔄 talk-to-my-agent {latest} is out (you run {running}):\n{notes}\n\n"
+            f"回 `update` 我就拉取并重启;不回就维持现状。")
+    lark("im", "+messages-send", "--as", "bot", "--user-id", cfg["owner_open_id"], "--text", text)
+    state["update_notified"] = latest
+    save_state(state)
+
+
+def update_checker(cfg, state):
+    check_for_update(cfg, state)
+    while True:
+        time.sleep(24 * 3600)
+        check_for_update(cfg, state)
+
+
+def apply_update(cfg, state):
+    """Owner said `update`: checkout the newest tag, flag config keys the new
+    version expects, then reload. Returns a human-readable result line."""
+    latest = latest_release()
+    if not latest:
+        return "couldn't reach origin — no update applied"
+    if latest == current_version():
+        return f"already on {latest}"
+    proc = subprocess.run(["git", "checkout", "-q", latest], cwd=PROJECT_DIR,
+                          capture_output=True, text=True, timeout=60)
+    if proc.returncode != 0:
+        return f"checkout failed: {proc.stderr.strip()[:200]}"
+    # config drift: keys the example has that yours lacks
+    missing = []
+    try:
+        example = json.loads((PROJECT_DIR / "config.example.json").read_text())
+        mine = json.loads(Path(cfg["_config_path"]).read_text())
+        missing = [k for k in example if k not in mine]
+    except Exception:  # noqa: BLE001
+        pass
+    note = f"updated to {latest}; restarting now (agents keep their memory)."
+    if missing:
+        note += f"\n⚠ new config keys you don't have yet: {', '.join(missing)} — defaults apply; see docs/configuration.md"
+    return note
+
+
 def approvals_enabled(cfg):
     return bool((cfg.get("approvals") or {}).get("enabled"))
 
@@ -362,7 +453,10 @@ def zone_paths(cfg, home):
     # ...and the engine's own skill libraries: an agent must read them to use
     # its skills — gating its toolbox behind approval helps nobody.
     skills = [Path.home() / ".claude" / "skills", Path.home() / ".agents" / "skills"]
-    read_zone = real(write_zone + [HOMES_DIR] + self_knowledge + skills +
+    # ...and the owner's session archives: checking on the owner's other
+    # sessions is part of the job (four approval cards in one afternoon for it).
+    sessions = [Path.home() / ".claude" / "projects", Path.home() / ".codex" / "sessions"]
+    read_zone = real(write_zone + [HOMES_DIR] + self_knowledge + skills + sessions +
                      (cfg.get("allowed_read_roots") or []))
     return write_zone, read_zone
 
@@ -410,10 +504,11 @@ def workspace_briefing(cfg, home):
     lines = [
         "Your workspace on this machine — these paths are already yours, do not go looking for others:",
         "",
-        f"YOUR repository (code work happens here): {workdir}",
-        "  It is synced to origin/main (= GitHub latest) whenever a task starts, so what you",
-        "  read here IS the current code. It is disposable: keep nothing precious in it —",
-        "  anything worth keeping goes in your home.",
+        f"YOUR repository (your working directory): {workdir}",
+        "  You are running INSIDE it: its AGENTS.md/CLAUDE.md rules and its skills are",
+        "  loaded and apply to you. It is synced to origin/main (= GitHub latest) whenever",
+        "  a task starts, so what you read here IS the current code. It is disposable:",
+        "  keep nothing precious in it — anything worth keeping goes in your home.",
         "",
         "Also free to read, write and run commands in:",
     ]
@@ -511,8 +606,22 @@ class Agent:
             cmd += ["--model", model]
         if self.session_id:
             cmd += ["--resume", self.session_id]
+        # The agent WORKS in the repo (so the repo's own AGENTS.md cascade and
+        # skills load — 46 rule files and 14 skills were invisible when cwd was
+        # its home) and REMEMBERS in its home, mounted as an extra project dir
+        # so its CLAUDE.md still auto-loads. Memory stays out of git.
+        cmd += ["--add-dir", str(self.home)]
+        notes = self.home / "CLAUDE.md"
+        if notes.exists():
+            # --add-dir grants access but does not auto-load the dir's CLAUDE.md
+            # (verified live); load the agent's own notes explicitly. Same shape
+            # as the Codex backend's developerInstructions — both engines get
+            # "repo rules from cwd + own memory from home".
+            cmd += ["--append-system-prompt-file", str(notes)]
+        workdir = Path(self.cfg["workdir"]).expanduser()
         self.proc = subprocess.Popen(
-            cmd, cwd=self.home, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            cmd, cwd=workdir if workdir.is_dir() else self.home,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, bufsize=1, env=agent_env(self.cfg, self.home, self.chat_id),
         )
         threading.Thread(target=self._read_loop, args=(self.proc,), daemon=True).start()
@@ -656,6 +765,13 @@ def handle_command(cfg, state, agents, event):
 
     if lowered in ("help", "?", "/help"):
         answer = HELP_TEXT
+    elif lowered == "update":
+        result = apply_update(cfg, state)
+        reply(event["message_id"], result, in_thread=False)
+        save_state(state)
+        if "updated to" in result:
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        return
     elif lowered == "reload":
         answer = "ok — restarting the bridge now (agents resume their sessions; in-flight tasks are interrupted)"
         reply(event["message_id"], answer, in_thread=False)
@@ -676,7 +792,8 @@ def handle_command(cfg, state, agents, event):
                 rows.append(f"· {agent.name} [{alive}] {doing} — ${agent.cost:.2f}\n"
                         f"  session: {(agent.session_id if agent.backend == 'claude' else agent.thread_id) or '-'}")
             model = prefs.get("model") or (cfg.get("executor") or {}).get("model") or "(default)"
-            rows.append(f"model: {model} · ack: {prefs.get('ack_emoji') or cfg.get('ack_emoji', 'THUMBSUP')}")
+            rows.append(f"model: {model} · ack: {prefs.get('ack_emoji') or cfg.get('ack_emoji', 'THUMBSUP')}"
+                        f" · version: {current_version()}")
             answer = "\n".join(rows)
     elif words and words[0] == "model" and len(words) == 2:
         prefs["model"] = normalize_model(words[1])
@@ -855,6 +972,7 @@ def consume_forever(cfg):
     agents = {}
     seen = set()
     threading.Thread(target=watch_inboxes, args=(cfg, state, agents), daemon=True).start()
+    threading.Thread(target=update_checker, args=(cfg, state), daemon=True).start()
     while True:
         # lark-cli treats stdin EOF as "shut down gracefully" on an unbounded
         # consume. A PIPE we never write to is one GC'd handle away from EOF —
