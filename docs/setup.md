@@ -9,6 +9,9 @@ Every teammate runs their **own** bridge with their **own** bot. Nothing is shar
    - **user** identity: reads group history as you (bots usually can't read history; you can)
 2. Note the two ids you'll need for config: `lark-cli auth status --json` shows your **user open_id** and your **bot open_id**.
 3. Add your bot to the groups where you want to be summonable (group settings → bots, or ask any member to add it).
+4. Set the app's **availability scope** to include the teammates you'll want to
+   reach. Feishu refuses to pull someone into a room if your app isn't available
+   to them — that is what blocks `pair <name>` later.
 
 Scopes worth checking if something 403s: `im:message` (bot send), `im:message.reactions:write_only` (bot react), `im:message:readonly` + `im:chat:read` (user read). The error envelopes name the missing scope explicitly.
 
@@ -74,4 +77,5 @@ DM your bot `model claude` / `model codex` to pick your default; see [configurat
 | Emoji but no answer | executor failed/timed out — check `bridge.log`; the bridge also posts the error into the thread |
 | `403 Request not allowed` in the reply | headless auth missing — do the `claude setup-token` step above |
 | `access denied` reading history | user identity missing read scopes, or you're not a member of that group |
+| `pair` says the bot is invisible to someone | your app's availability scope excludes them — add them in the developer console |
 | Bot can't be @'d | bots must be group members to be mentionable |
