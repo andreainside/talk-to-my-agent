@@ -88,6 +88,21 @@ CHAT_POST = re.compile(r"^\s*(?:\w+=\S+\s+)*lark-cli\s+im\s+\+messages-(?:reply|
 QUOTED_SPAN = re.compile(r"\"[^\"]*\"|'[^']*'")
 
 
+DIRECT_ROOMS = set(filter(None, (os.environ.get("TTMA_DIRECT_ROOMS") or "").split(":")))
+
+
+def post_audience(command):
+    """Where a chat post lands: 'direct' (a 1:1 room or a DM — a private word
+    with one person) or 'public' (a team room, where the agent speaks in the
+    owner's name to everyone)."""
+    target = OUTBOUND_TARGET.search(command)
+    if "--user-id" in command:
+        return "direct"
+    if target and target.group(1) in DIRECT_ROOMS:
+        return "direct"
+    return "public"
+
+
 def is_plain_chat_post(command):
     if not CHAT_POST.match(command):
         return False
@@ -356,7 +371,12 @@ def main():
     # command only posts a message; paths and verbs in its text are words.
     if command and is_plain_chat_post(command):
         record_outbound(command)
-        decide(True, "posting a chat message")
+        # Replying where it was summoned, or a private word in a 1:1 room, is
+        # the agent doing its job. Opening a NEW conversation in a team room
+        # speaks publicly in the owner's name — that one they see first.
+        if "+messages-reply" in command or post_audience(command) == "direct":
+            decide(True, "posting a chat message")
+        ask_owner(tool, tool_input, "要在团队群里主动发言(以你的名义)", session_id)
 
     # 1. Outward / irreversible: always ask, blanket grants do not cover it.
     if command and OUTWARD.search(command):

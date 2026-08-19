@@ -46,6 +46,7 @@ HELP_TEXT = """I'm your agents' control plane. One agent per group; DM me:
   reset <group>       fresh brain for one group's agent (or: reset all)
   reload              restart the bridge to pick up new code (agents keep their memory)
   update              fetch the newest release, switch to it, restart
+  pair <name>         open a 1:1 room with a teammate (you + them + both agents)
   help                this text
 In a group: @me [+free] your request"""
 
@@ -461,6 +462,14 @@ def zone_paths(cfg, home):
     return write_zone, read_zone
 
 
+def direct_rooms(cfg):
+    """1:1 rooms — 'you + them + both agents'. One address per person, so an
+    agent that needs someone never has to guess which team room to use."""
+    state = load_state()
+    return sorted(set((state.get("direct_rooms") or {}).values()) |
+                  set(cfg.get("direct_rooms") or []))
+
+
 def agent_env(cfg, home, chat_id=""):
     write_zone, read_zone = zone_paths(cfg, home)
     return executor_env(cfg, {
@@ -469,6 +478,9 @@ def agent_env(cfg, home, chat_id=""):
         "TTMA_CHAT_ID": chat_id,
         "TTMA_OWNER_OPEN_ID": cfg.get("owner_open_id", ""),
         "TTMA_REPLY_STYLE": cfg.get("reply_style", "thread"),
+        # rooms where the agent may speak up on its own: a 1:1 room is a private
+        # word with one person, a team room is speaking publicly in your name
+        "TTMA_DIRECT_ROOMS": ":".join(direct_rooms(cfg)),
         "TTMA_APPROVAL_TIMEOUT": str((cfg.get("approvals") or {}).get("timeout_seconds", 300)),
     })
 
@@ -777,6 +789,37 @@ def compose_message(state, agent, event, request, free):
 
 # ------------------------------------------------------------ control plane --
 
+def create_pair_room(cfg, state, person):
+    """`pair <name>`: a room for you, them, and both your agents. The agent that
+    lives there is this person's line — no routing decision anywhere."""
+    envelope = lark("contact", "+search-user", "--as", "user", "--query", person)
+    users = ((envelope.get("data") or {}).get("users") or
+             (envelope.get("data") or {}).get("items") or [])
+    if not users:
+        return f"couldn't find anyone called '{person}' — try their exact name"
+    target = users[0]
+    open_id = target.get("open_id") or target.get("user_id")
+    name = target.get("localized_name") or target.get("name") or person
+    owner_name = state.get("owner_name")
+    if not owner_name:
+        me = lark("contact", "+get-user", "--as", "user")
+        owner_name = ((me.get("data") or {}).get("user") or me.get("data") or {}).get(
+            "localized_name") or ((me.get("data") or {}).get("user") or {}).get("name") or "me"
+        state["owner_name"] = owner_name
+    result = lark("im", "+chat-create", "--as", "bot",
+                  "--name", f"{owner_name} × {name}", "--type", "private",
+                  "--users", f"{cfg['owner_open_id']},{open_id}")
+    chat_id = (result.get("data") or {}).get("chat_id")
+    if not chat_id:
+        return f"couldn't create the room: {(result.get('error') or {}).get('message', 'unknown')}"
+    state.setdefault("direct_rooms", {})[name] = chat_id
+    state.setdefault("chat_names", {})[chat_id] = f"{owner_name} × {name}"
+    save_state(state)
+    return (f"ok — 1:1 room with {name} created. Ask them to add their own bot to it.\n"
+            f"Your agents can now reach {name} there without asking you first.\n"
+            f"(restart or `reload` for the change to reach running agents)")
+
+
 def handle_command(cfg, state, agents, event):
     text = str(event.get("content") or "").strip()
     prefs = state.setdefault("prefs", {})
@@ -786,6 +829,8 @@ def handle_command(cfg, state, agents, event):
 
     if lowered in ("help", "?", "/help"):
         answer = HELP_TEXT
+    elif words and words[0] == "pair" and len(words) >= 2:
+        answer = create_pair_room(cfg, state, " ".join(text.split()[1:]))
     elif lowered == "update":
         result = apply_update(cfg, state)
         reply(event["message_id"], result, in_thread=False)

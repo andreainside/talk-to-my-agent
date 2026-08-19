@@ -4,6 +4,20 @@ Each release gets one section. The bridge reads the newest section and DMs it
 to the owner verbatim — so write for the person who'll read it in a chat, not
 for a compiler. Mark config changes with ⚠.
 
+## v0.7.0 — 2026-08-19
+
+- **Agents can reach people now.** Blocked on a permission, a collision with
+  someone else's work, or a decision only a person can make? Instead of guessing
+  or stalling, an agent asks that person in chat.
+- **1:1 rooms**: `pair <name>` in your DM opens a room with you, them, and both
+  your agents. One address per person means no agent ever has to guess which
+  team room a topic belongs to. Posting there is free; opening a conversation in
+  a team room asks you first — that's your voice in public.
+- **The directory grows by asking.** `shared/TEAM.md` starts empty. When an
+  agent doesn't know who owns something it asks you, and once the contact works
+  it writes the line itself. No org chart to fill in.
+- **`ask-the-team` skill** gives your own dev sessions the same reflex.
+
 ## v0.6.2 — 2026-08-19
 
 - **Fix: agents still died at launch on v0.6.1.** Two flags were passed that the

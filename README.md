@@ -87,6 +87,24 @@ The policy is **zones, not command lists**: inside its workspace (its home, the 
 
 No allowlist of "safe commands" to maintain — that approach breaks on every new shell idiom. `python3 test_permissions.py` runs the whole policy as executable cases.
 
+## Agents that reach people
+
+A blocked agent shouldn't guess. When work needs a *person* — a permission, a
+collision with someone else's work, a product call — it asks them in chat,
+under your bot.
+
+Each teammate gets a **1:1 room**: you, them, and both your agents. That room is
+that person's address, so an agent never has to work out which team room a topic
+belongs to. `pair <name>` in your DM creates one. Posting there is free; opening
+a conversation in a *team* room asks you first — that's your voice in public.
+
+Who to ask lives in `shared/TEAM.md`, and **it starts empty on purpose**. The
+first time an agent needs someone it doesn't know, it asks you; once the contact
+works, it writes the line itself. After a few rounds the directory is real,
+earned, and yours — not a guess at your org chart.
+
+Your own dev sessions get the same reflex via the `ask-the-team` skill.
+
 ## Sessions are real sessions
 
 Each agent is a normal Claude session on your machine — `claude --resume <id>` turns any of them into your interactive terminal, mid-investigation, context loaded. A teammate's question can become your afternoon's work.

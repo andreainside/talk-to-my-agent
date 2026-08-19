@@ -17,7 +17,9 @@ Rules of the commons:
 
 ## People
 
-<!-- who's in which room, what they own, how they like answers -->
+<!-- Grown by asking, not filled in advance. One line per person or topic:
+     <topic or area> → <person> (1:1 room <chat_id>), learned <date>
+     Add a line only after reaching them actually worked. -->
 
 ## Conventions
 

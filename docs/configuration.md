@@ -17,6 +17,7 @@ DM your own bot. Commands are plain text:
 | `reset <group>` / `reset all` | fresh brain for that group's agent (its notes stay) |
 | `reload` | restart the bridge in place to pick up new code (agents keep memory) |
 | `update` | switch to the newest release and restart |
+| `pair <name>` | open a 1:1 room with a teammate (you + them + both agents) |
 | `help` | command list |
 
 Emoji keys are Feishu's fixed reaction keys (`Yes`, `No`, `CheckMark`, `SMUG`,
@@ -41,6 +42,9 @@ On top of that, two short semantic rules:
   `git reset/clean/checkout --`, `chmod`, …) are free inside the write zone —
   deleting build output in a throwaway worktree is just work — but **ask**
   whenever they reach outside it.
+- **Speaking in your name**: replying where it was summoned, and posting in a
+  1:1 room, are free — that's the agent doing its job, privately. Opening a new
+  conversation in a *team* room asks first: that's your voice, in public.
 - **Outward or irreversible actions** (`git push`, `gh pr create/merge`,
   `npm/cargo publish`, `kubectl apply`, `terraform apply`, `docker push`,
   mutating `curl`) **always ask**, even under a blanket grant. You can undo a
