@@ -104,6 +104,17 @@
 
 桥每天检查一次新版本(零 token),有新版就私聊你 changelog。回 `update` 就切换并重启;不回就维持现状。没有你的话,什么都不会被拉取。
 
+## 已经装了旧版?
+
+v0.6.0 之前的版本里没有更新机制——你缺的正是"会自己更新的那个桥"。手动一次,就一次:
+
+```bash
+cd ~/talk-to-my-agent && git fetch --tags && git checkout $(git tag -l 'v*' --sort=-v:refname | head -1)
+launchctl kickstart -k gui/$(id -u)/com.talk-to-my-agent   # 或重启 bridge.py
+```
+
+之后有新版你的 bot 会私聊你,私聊回 `update` 就完事,再也不用碰终端。
+
 ## 群规(安全边界)
 
 - agent 只在**自己的 bot 被 @** 时行动,不偷听。

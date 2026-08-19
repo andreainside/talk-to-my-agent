@@ -597,6 +597,7 @@ class Agent:
         self.session_id = (state.get("sessions") or {}).get(chat_id)
         self.busy_since = None
         self.last_request = ""
+        self.on_text = None  # test hook: observe what the agent says
         self.cost = (state.get("costs") or {}).get(chat_id, 0.0)
 
     # -- process lifecycle -------------------------------------------------
@@ -690,6 +691,10 @@ class Agent:
             except ValueError:
                 continue
             kind = event.get("type")
+            if kind == "assistant" and self.on_text:
+                for block in (event.get("message") or {}).get("content") or []:
+                    if block.get("type") == "text":
+                        self.on_text(block["text"])
             if kind == "system" and event.get("session_id"):
                 self.session_id = event["session_id"]
                 self.state.setdefault("sessions", {})[self.chat_id] = self.session_id

@@ -4,6 +4,17 @@ Each release gets one section. The bridge reads the newest section and DMs it
 to the owner verbatim — so write for the person who'll read it in a chat, not
 for a compiler. Mark config changes with ⚠.
 
+## v0.7.1 — 2026-08-19
+
+- **A release gate that actually launches an agent** (`./release.sh`). Two
+  releases shipped broken because the checks proved a one-off command could see
+  the repo, never that a real agent survived its launch flags. Now a release
+  can't be cut unless an agent starts, answers, and proves both its repo rules
+  and its own memory arrived.
+- Feishu's "bot is invisible to user ids" refusal is translated: it names the
+  person and points at the availability-scope switch in the developer console.
+- README tells people running pre-v0.6.0 copies how to upgrade once, by hand.
+
 ## v0.7.0 — 2026-08-19
 
 - **Agents can reach people now.** Blocked on a permission, a collision with

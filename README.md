@@ -113,6 +113,19 @@ Each agent is a normal Claude session on your machine — `claude --resume <id>`
 
 The bridge checks for new releases once a day (zero tokens) and DMs you the changelog. Reply `update` to switch; say nothing to stay. Nothing is pulled without your word.
 
+## Already installed an older copy?
+
+Releases before v0.6.0 have no update mechanism — the bridge that knows how to
+update itself is the thing you're missing. One manual step, once:
+
+```bash
+cd ~/talk-to-my-agent && git fetch --tags && git checkout $(git tag -l 'v*' --sort=-v:refname | head -1)
+launchctl kickstart -k gui/$(id -u)/com.talk-to-my-agent   # or restart bridge.py
+```
+
+From then on your bot tells you when a release lands, and `update` in your DM
+does the rest.
+
 ## House rules (safety)
 
 - An agent acts only when **its own bot** is @mentioned. No ambient listening.
