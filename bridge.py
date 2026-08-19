@@ -899,6 +899,12 @@ def main():
     parser.add_argument("--config", default=str(STATE_DIR / "config.json"))
     args = parser.parse_args()
     cfg = json.loads(Path(args.config).expanduser().read_text())
+    # The env file (proxies, headless tokens) must reach the bridge's OWN
+    # lark-cli calls — the event stream, acks, context reads — not only the
+    # agents it spawns. Under launchd there is no shell profile to inherit a
+    # proxy from; after a reboot this is the difference between "listening"
+    # and a silent TLS-timeout loop.
+    ENV.update({k: v for k, v in executor_env(cfg).items() if k not in ENV or ENV[k] != v})
     cfg["_config_path"] = str(Path(args.config).expanduser())
     for key in ("bot_open_id", "owner_open_id", "workdir"):
         if not cfg.get(key):
