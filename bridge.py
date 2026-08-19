@@ -811,7 +811,15 @@ def create_pair_room(cfg, state, person):
                   "--users", f"{cfg['owner_open_id']},{open_id}")
     chat_id = (result.get("data") or {}).get("chat_id")
     if not chat_id:
-        return f"couldn't create the room: {(result.get('error') or {}).get('message', 'unknown')}"
+        detail = (result.get("error") or {}).get("message", "unknown")
+        if "invisible to user" in detail or "unavailable ids" in detail:
+            # Feishu's wording for "your app's availability scope excludes them";
+            # nothing on this machine can fix it, so say where the switch is.
+            return (f"can't add {name} yet: your bot app isn't available to them.\n"
+                    f"Open the Feishu developer console → your app → availability "
+                    f"scope, add {name} (or the whole team), then try `pair {person}` "
+                    f"again. Everything else is ready.")
+        return f"couldn't create the room: {detail}"
     state.setdefault("direct_rooms", {})[name] = chat_id
     state.setdefault("chat_names", {})[chat_id] = f"{owner_name} × {name}"
     save_state(state)

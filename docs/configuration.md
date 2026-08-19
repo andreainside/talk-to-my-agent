@@ -18,6 +18,10 @@ DM your own bot. Commands are plain text:
 | `reload` | restart the bridge in place to pick up new code (agents keep memory) |
 | `update` | switch to the newest release and restart |
 | `pair <name>` | open a 1:1 room with a teammate (you + them + both agents) |
+
+`pair` needs your bot app to be *available* to that person (Feishu developer
+console → your app → availability scope). Feishu refuses to add someone who
+can't see your bot, and says so in its own words; the bridge translates.
 | `help` | command list |
 
 Emoji keys are Feishu's fixed reaction keys (`Yes`, `No`, `CheckMark`, `SMUG`,
