@@ -610,7 +610,12 @@ class Agent:
         # skills load — 46 rule files and 14 skills were invisible when cwd was
         # its home) and REMEMBERS in its home, mounted as an extra project dir
         # so its CLAUDE.md still auto-loads. Memory stays out of git.
-        cmd += ["--add-dir", str(self.home)]
+        # Working inside the repo means inheriting the repo's settings — including
+        # SessionStart hooks meant for the owner's interactive sessions, which
+        # hang a headless stream-json start (agents silently died at launch).
+        # Take the repo's CLAUDE.md/skills, not its hooks; ours arrive via
+        # --settings above.
+        cmd += ["--setting-sources", "user", "--add-dir", str(self.home)]
         notes = self.home / "CLAUDE.md"
         if notes.exists():
             # --add-dir grants access but does not auto-load the dir's CLAUDE.md

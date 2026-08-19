@@ -4,6 +4,14 @@ Each release gets one section. The bridge reads the newest section and DMs it
 to the owner verbatim — so write for the person who'll read it in a chat, not
 for a compiler. Mark config changes with ⚠.
 
+## v0.6.1 — 2026-08-19
+
+- **Fix: agents died at startup after v0.6.0.** Moving their working directory
+  into your repository also made them inherit the repository's hooks, and
+  SessionStart hooks written for interactive sessions hang a headless one. They
+  now load only your user-level settings: repo rules and skills still apply,
+  repo hooks don't.
+
 ## v0.6.0 — 2026-08-19
 
 - **Agents now work inside your repository.** Previously an agent's working
