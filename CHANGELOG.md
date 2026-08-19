@@ -4,6 +4,20 @@ Each release gets one section. The bridge reads the newest section and DMs it
 to the owner verbatim — so write for the person who'll read it in a chat, not
 for a compiler. Mark config changes with ⚠.
 
+## v0.7.2 — 2026-08-19
+
+- **Agents announce before digging in.** The rule used to be "say something if
+  it looks like it'll take a while" — which agents skipped, because they can't
+  tell in advance. One spent eight minutes reading code in silence while the
+  person who asked wondered whether it had died. Now: any request that isn't an
+  immediate answer gets one line first. And "someone already covered this" is
+  still an answer worth posting — a question with no reply looks lost.
+- **Sessions speaking as your bot must identify themselves.** Your bot's name is
+  shared by every agent on your machine; an unattributed message leaves both the
+  human and the room's own agent guessing whose words those are. The
+  `ask-the-team` skill now requires the first line to say which session is
+  talking.
+
 ## v0.7.1 — 2026-08-19
 
 - **A release gate that actually launches an agent** (`./release.sh`), which

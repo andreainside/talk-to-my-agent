@@ -47,10 +47,13 @@ lark-cli im +messages-reply --as bot --message-id <id> --markdown "..."   # repl
 lark-cli im +messages-send  --as bot --chat-id <1:1 room> --markdown "..." # opening
 ```
 
-Write four things, briefly: what you're building, what's blocking, exactly what
-you need from them, and what happens once you have it. Sign off as what you are
-— a session working on your owner's machine — so they know a human didn't type
-it.
+**Say who you are in the first line.** Your owner's bot name is shared: the
+group agents speak under it too, and one of them may be sitting in that very
+room. A message that doesn't identify itself leaves both the human and that
+agent guessing whose words these are — and an agent that guesses wrong will
+answer for you. Open with something like *"我是 Andrea 机器上的一个开发会话,正在做
+X"*, then: what's blocking, exactly what you need, and what happens once you
+have it. Brief.
 
 A 1:1 room needs no approval. **A team room does** — that is your owner
 speaking publicly, and they'll see the card first. If someone has no 1:1 room,
